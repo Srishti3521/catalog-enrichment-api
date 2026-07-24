@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Catalog Intelligence Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1B1F27;
+    --surface: #242933;
+    --surface-raised: #2D3340;
+    --border: #3A4150;
+    --border-soft: #323847;
+    --amber: #E3A857;
+    --sage: #7FB69E;
+    --rust: #C97B4A;
+    --text: #EDE8DE;
+    --text-muted: #8B92A0;
+    --text-dim: #5C6270;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  html, body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  ::selection { background: var(--amber); color: var(--ink); }
+
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  a { color: var(--amber); }
+
+  /* ---------- Layout shell ---------- */
+
+  .shell {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 28px 24px 80px;
+  }
+
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+
+  .brand-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+
+  .brand-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.01em;
+  }
+
+  .brand-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    max-width: 420px;
+  }
+
+  .key-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .key-box label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .key-box input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 8px 10px;
+    width: 180px;
+  }
+
+  .key-box input:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 1px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .status-dot.ok { background: var(--sage); box-shadow: 0 0 6px var(--sage); }
+  .status-dot.bad { background: var(--rust); box-shadow: 0 0 6px var(--rust); }
+
+  /* ---------- Tabs ---------- */
+
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  nav.tabs button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    padding: 10px 16px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+
+  nav.tabs button:hover { color: var(--text); }
+
+  nav.tabs button.active {
+    color: var(--amber);
+    border-bottom-color: var(--amber);
+  }
+
+  nav.tabs button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: -2px;
+  }
+
+  .panel { display: none; animation: fadein 0.25s ease; }
+  .panel.active { display: block; }
+
+  @keyframes fadein {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---------- Cards / forms ---------- */
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .card + .card { margin-top: 16px; }
+
+  .card h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+
+  .card .hint {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin: 0 0 18px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .field { margin-bottom: 12px; }
+
+  .field label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .field input, .field textarea {
+    width: 100%;
+    background: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    padding: 9px 11px;
+    resize: vertical;
+  }
+
+  .field textarea { min-height: 76px; font-family: 'Inter', sans-serif; }
+
+  .field input:focus-visible, .field textarea:focus-visible, .field input:focus, .field textarea:focus {
+    outline: 2px solid var(--amber);
+    outline-offset: 0;
+    border-color: var(--amber);
+  }
+
+  button.action {
+    background: var(--amber);
+    color: var(--ink);
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+
+  button.action:hover { box-shadow: 0 0 0 3px rgba(227,168,87,0.18); }
+  button.action:active { transform: scale(0.98); }
+  button.action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  button.action:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  button.ghost {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  button.ghost:hover { border-color: var(--amber); color: var(--amber); }
+
+  /* ---------- Stamp (signature element) ---------- */
+
+  .stamp {
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    border: 2px dashed currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transform: rotate(-7deg);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .stamp.high { color: var(--sage); }
+  .stamp.mid { color: var(--amber); }
+  .stamp.low { color: var(--rust); }
+
+  .flag-review {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rust);
+    border: 1px dashed var(--rust);
+    border-radius: 3px;
+    padding: 2px 7px;
+    transform: rotate(-2deg);
+  }
+
+  .attr-chip.missing {
+    border-color: var(--rust);
+    color: var(--rust);
+  }
+
+  .fail-banner {
+    background: rgba(201,123,74,0.12);
+    border: 1px solid var(--rust);
+    color: var(--rust);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 10px;
+  }
+
+  details.desc-details { margin-top: 12px; }
+  details.desc-details summary {
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    list-style: none;
+  }
+  details.desc-details summary::-webkit-details-marker { display: none; }
+  details.desc-details summary:before { content: '▸ '; }
+  details.desc-details[open] summary:before { content: '▾ '; }
+  details.desc-details summary:hover { color: var(--amber); }
+  details.desc-details p {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .schema-block {
+    background: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 11px;
+    color: var(--sage);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 280px;
+    overflow: auto;
+    margin-top: 10px;
+  }
+
+  .card-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .card-actions button.ghost { font-size: 11px; padding: 6px 12px; }
+
+  /* ---------- Result cards ---------- */
+
+  .result-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+  }
+  .result-card + .result-card { margin-top: 10px; }
+
+  .result-main { flex: 1; min-width: 0; }
+
+  .result-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .result-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14.5px;
+  }
+
+  .result-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-dim);
+  }
+
+  .attr-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .attr-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    color: var(--text-muted);
+  }
+  .attr-chip b { color: var(--text); font-weight: 500; }
+
+  .gap-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-soft);
+    font-style: italic;
+  }
+
+  .feature-block {
+    margin-top: 12px;
+  }
+
+  .feature-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .feature-text {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .attr-row + .attr-row { margin-top: 8px; }
+
+  /* ---------- Progress bar ---------- */
+
+  .progress-wrap {
+    background: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    height: 8px;
+    overflow: hidden;
+    margin: 14px 0;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--amber), var(--sage));
+    width: 0%;
+    transition: width 0.4s ease;
+    position: relative;
+  }
+  .progress-bar.pulsing::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.25);
+    animation: scan 1.4s linear infinite;
+  }
+  @keyframes scan {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .job-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 18px;
+  }
+  .job-meta span b { color: var(--text); }
+
+  /* ---------- Misc ---------- */
+
+  .empty {
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 24px 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .error-box {
+    background: rgba(201,123,74,0.12);
+    border: 1px solid var(--rust);
+    color: var(--rust);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-top: 12px;
+  }
+
+  .verdict {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--amber);
+    margin-bottom: 8px;
+  }
+
+  .sov-bar-wrap {
+    background: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    height: 20px;
+    overflow: hidden;
+    margin: 10px 0;
+    position: relative;
+  }
+  .sov-bar {
+    height: 100%;
+    background: var(--sage);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink);
+    font-weight: 700;
+    transition: width 0.5s ease;
+  }
+
+  .brand-mention-list { margin-top: 12px; }
+  .mention-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 13px;
+  }
+  .mention-row:last-child { border-bottom: none; }
+  .mention-row .q { color: var(--text-muted); max-width: 75%; }
+  .mention-row .m { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .m.yes { color: var(--sage); }
+  .m.no { color: var(--text-dim); }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .file-drop {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .file-drop:hover { border-color: var(--amber); color: var(--amber); }
+  .file-drop input { display: none; }
+
+  footer.foot {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="top">
+    <div>
+      <div class="brand-eyebrow">Catalog Intelligence Console</div>
+      <div class="brand-title">AI Catalog Enrichment &amp; Visibility</div>
+      <div class="brand-sub">Structure your catalog for how AI shopping assistants actually read it — then verify they do.</div>
+    </div>
+    <div class="key-box">
+      <span class="status-dot" id="statusDot"></span>
+      <label for="apiKeyInput">X-API-Key</label>
+      <input type="password" id="apiKeyInput" placeholder="paste key" />
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="enrich">Enrich</button>
+    <button class="tab-btn" data-tab="batch">Batch</button>
+    <button class="tab-btn" data-tab="catalog">Catalog</button>
+    <button class="tab-btn" data-tab="compare">Compare</button>
+    <button class="tab-btn" data-tab="visibility">Visibility</button>
+  </nav>
+
+  <!-- ENRICH -->
+  <section class="panel active" id="panel-enrich">
+    <div class="card">
+      <h2>Enrich a single product</h2>
+      <p class="hint">Give it a name and description — the model infers material, use case, audience and more. Any factual fields you already know (price, stock, rating) pass straight through, untouched.</p>
+
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="e-name" placeholder="Trail Runner Pro" />
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="e-description" placeholder="A lightweight, water-resistant trail running shoe..."></textarea>
+      </div>
+
+      <div class="grid-2">
+        <div class="field"><label>Price</label><input type="number" step="0.01" id="e-price" placeholder="89.99" /></div>
+        <div class="field"><label>Currency</label><input type="text" id="e-currency" placeholder="USD" /></div>
+        <div class="field"><label>Colour</label><input type="text" id="e-colour" placeholder="Black" /></div>
+        <div class="field"><label>URL</label><input type="text" id="e-url" placeholder="https://..." /></div>
+        <div class="field"><label>Availability</label><input type="text" id="e-availability" placeholder="in stock" /></div>
+        <div class="field"><label>Rating</label><input type="number" step="0.1" id="e-rating" placeholder="4.5" /></div>
+        <div class="field" style="grid-column: 1 / -1;"><label>Available sizes</label><input type="text" id="e-sizes" placeholder="8,9,10,11" /></div>
+      </div>
+
+      <button class="action" id="e-submit">Enrich product</button>
+      <div id="e-error"></div>
+    </div>
+
+    <div id="e-result"></div>
+  </section>
+
+  <!-- BATCH -->
+  <section class="panel" id="panel-batch">
+    <div class="card">
+      <h2>Batch enrich from CSV</h2>
+      <p class="hint">Needs at minimum <span class="mono">name</span> and <span class="mono">description</span> columns. Extra columns (price, url, rating...) are picked up automatically if present.</p>
+
+      <label class="file-drop" id="fileDrop">
+        <span id="fileLabel">Click to choose a CSV file</span>
+        <input type="file" id="b-file" accept=".csv" />
+      </label>
+
+      <button class="action" id="b-submit" style="margin-top:14px;">Upload &amp; enrich</button>
+      <div id="b-error"></div>
+    </div>
+
+    <div class="card" id="b-progress-card" style="display:none;">
+      <h2>Job progress <span class="result-id mono" id="b-jobid" style="margin-left:8px;"></span></h2>
+      <div class="progress-wrap"><div class="progress-bar" id="b-bar"></div></div>
+      <div class="job-meta">
+        <span>status: <b id="b-status">—</b></span>
+        <span>completed: <b id="b-completed">0</b></span>
+        <span>failed: <b id="b-failed">0</b></span>
+        <span>total: <b id="b-total">0</b></span>
+      </div>
+    </div>
+
+    <div id="b-results"></div>
+  </section>
+
+  <!-- CATALOG -->
+  <section class="panel" id="panel-catalog">
+    <div class="card">
+      <div class="toggle-row">
+        <input type="checkbox" id="c-review-only" />
+        <label for="c-review-only" style="margin:0;">show only products flagged for review</label>
+        <button class="ghost" id="c-refresh" style="margin-left:auto;">Refresh</button>
+      </div>
+      <div id="c-results"><div class="empty">Loading catalog…</div></div>
+    </div>
+  </section>
+
+  <!-- COMPARE -->
+  <section class="panel" id="panel-compare">
+    <div class="card">
+      <h2>Compare two products</h2>
+      <p class="hint">Enter the IDs of two already-enriched products to see which an AI shopping assistant would more likely recommend, and why.</p>
+      <div class="grid-2">
+        <div class="field"><label>Product A ID</label><input type="number" id="cmp-a" /></div>
+        <div class="field"><label>Product B ID</label><input type="number" id="cmp-b" /></div>
+      </div>
+      <button class="action" id="cmp-submit">Compare</button>
+      <div id="cmp-error"></div>
+    </div>
+    <div id="cmp-result"></div>
+  </section>
+
+  <!-- VISIBILITY -->
+  <section class="panel" id="panel-visibility">
+    <div class="card">
+      <h2>Run a visibility check</h2>
+      <p class="hint">Ask a real shopping question and see which of your watched brands the model actually mentions in its natural answer.</p>
+      <div class="field">
+        <label>Shopping query</label>
+        <input type="text" id="v-query" placeholder="best waterproof running shoes under $100" />
+      </div>
+      <div class="field">
+        <label>Watched brands (comma separated)</label>
+        <input type="text" id="v-brands" placeholder="Nike, Adidas, Brooks, Asics" />
+      </div>
+      <button class="action" id="v-submit">Run check</button>
+      <div id="v-error"></div>
+    </div>
+    <div id="v-result"></div>
+
+    <div class="card">
+      <h2>Brand history &amp; share of voice</h2>
+      <div class="field">
+        <label>Brand</label>
+        <input type="text" id="h-brand" placeholder="Nike" />
+      </div>
+      <button class="action" id="h-submit">Look up</button>
+      <div id="h-error"></div>
+      <div id="h-result"></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>catalog-enrichment-api</span>
+    <span id="healthLabel">checking connection…</span>
+  </footer>
+
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+
+function getKey() { return localStorage.getItem('catalog_api_key') || ''; }
+function setKey(v) { localStorage.setItem('catalog_api_key', v); }
+
+const apiKeyInput = document.getElementById('apiKeyInput');
+apiKeyInput.value = getKey();
+apiKeyInput.addEventListener('input', () => setKey(apiKeyInput.value));
+
+function authHeaders(json = true) {
+  const h = { 'X-API-Key': getKey() };
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+
+async function checkHealth() {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('healthLabel');
+  try {
+    const res = await fetch(API_BASE + '/health');
+    if (res.ok) {
+      dot.classList.add('ok'); dot.classList.remove('bad');
+      label.textContent = 'connected · ' + API_BASE.replace(/^https?:\/\//, '');
+    } else throw new Error();
+  } catch (e) {
+    dot.classList.add('bad'); dot.classList.remove('ok');
+    label.textContent = 'unable to reach API';
+  }
+}
+checkHealth();
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'catalog') loadCatalog();
+  });
+});
+
+// ---------- Shared: stamp + product card renderer ----------
+function scoreTier(score) {
+  if (score >= 0.7) return 'high';
+  if (score >= 0.4) return 'mid';
+  return 'low';
+}
+
+function attrChip(label, value) {
+  if (!value && value !== 0) return '';
+  return `<span class="attr-chip">${label}: <b>${escapeHtml(String(value))}</b></span>`;
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+async function toggleSchema(id) {
+  const box = document.getElementById('schema-' + id);
+  if (!box) return;
+  if (box.style.display === 'block') { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  if (box.dataset.loaded === '1') return;
+  box.textContent = 'loading…';
+  try {
+    const res = await fetch(API_BASE + '/products/' + id + '/schema-org', { headers: authHeaders(false) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to load');
+    box.textContent = JSON.stringify(data, null, 2);
+    box.dataset.loaded = '1';
+  } catch (e) {
+    box.textContent = 'Failed to load schema.org output: ' + e.message;
+  }
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString(); } catch (e) { return iso; }
+}
+
+function renderProductCard(p) {
+  const pct = Math.round((p.completeness_score || 0) * 100);
+  const tier = scoreTier(p.completeness_score || 0);
+  const reviewBadge = p.needs_review ? `<span class="flag-review">needs review</span>` : '';
+  const isFailed = p.status === 'enrichment_failed';
+
+  const failBanner = isFailed
+    ? `<div class="fail-banner">enrichment_failed — the model's response couldn't be parsed. Only fields provided directly are shown below.</div>`
+    : '';
+
+  // Row 1 — semantic attributes the model inferred
+  const coreChips = [
+    attrChip('material', p.material),
+    attrChip('use case', p.use_case),
+    attrChip('size range', p.size_range),
+    attrChip('gender', p.gender),
+    attrChip('weather', p.weather_resistance),
+    attrChip('audience', p.target_audience),
+  ].filter(Boolean).join('');
+
+  // Row 2 — factual/commercial fields, passed through untouched, never inferred
+  const priceChip = p.price != null ? attrChip('price', (p.currency || '') + ' ' + p.price) : '';
+  const commerceChips = [
+    priceChip,
+    attrChip('availability', p.availability),
+    attrChip('rating', p.rating),
+    attrChip('colour', p.colour),
+    attrChip('sizes', p.available_sizes),
+  ].filter(Boolean).join('');
+  const urlLink = p.url
+    ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="attr-chip" style="text-decoration:none;">view listing ↗</a>`
+    : '';
+
+  // Row 3 — raw missing-fields list, distinct from the prose gap summary
+  const missingList = (p.missing_fields || '').split(',').map(s => s.trim()).filter(Boolean);
+  const missingChips = missingList.length
+    ? `<div class="attr-row">${missingList.map(f => `<span class="attr-chip missing">missing: ${escapeHtml(f)}</span>`).join('')}</div>`
+    : '';
+
+  const features = p.key_features ? `
+    <div class="feature-block">
+      <div class="feature-label">key features</div>
+      <div class="feature-text">${escapeHtml(p.key_features)}</div>
+    </div>` : '';
+
+  const diff = p.differentiators ? `
+    <div class="feature-block">
+      <div class="feature-label">differentiators</div>
+      <div class="feature-text">${escapeHtml(p.differentiators)}</div>
+    </div>` : '';
+
+  const gap = p.gap_summary ? `<div class="gap-note">${escapeHtml(p.gap_summary)}</div>` : '';
+
+  const description = p.description ? `
+    <details class="desc-details">
+      <summary>original description</summary>
+      <p>${escapeHtml(p.description)}</p>
+    </details>` : '';
+
+  const schemaSection = p.id != null ? `
+    <div class="card-actions">
+      <button class="ghost" onclick="toggleSchema(${p.id})">view schema.org JSON-LD</button>
+    </div>
+    <pre class="schema-block mono" id="schema-${p.id}" style="display:none;"></pre>
+  ` : '';
+
+  return `
+    <div class="result-card">
+      <div class="stamp ${tier}">${pct}%</div>
+      <div class="result-main">
+        <div class="result-top">
+          <div class="result-name">${escapeHtml(p.name || '')}</div>
+          <div class="result-id mono">#${p.id ?? '—'} · ${formatDate(p.created_at)} ${reviewBadge}</div>
+        </div>
+        ${failBanner}
+        ${coreChips ? `<div class="attr-row">${coreChips}</div>` : ''}
+        ${(commerceChips || urlLink) ? `<div class="attr-row">${commerceChips}${urlLink}</div>` : ''}
+        ${missingChips}
+        ${features}
+        ${diff}
+        ${gap}
+        ${description}
+        ${schemaSection}
+      </div>
+    </div>
+  `;
+}
+
+// ---------- ENRICH ----------
+document.getElementById('e-submit').addEventListener('click', async () => {
+  const errBox = document.getElementById('e-error');
+  const resultBox = document.getElementById('e-result');
+  errBox.innerHTML = '';
+  const name = document.getElementById('e-name').value.trim();
+  const description = document.getElementById('e-description').value.trim();
+  if (!name || !description) {
+    errBox.innerHTML = `<div class="error-box">Name and description are both required.</div>`;
+    return;
+  }
+  const body = {
+    name, description,
+    price: numOrNull('e-price'),
+    currency: strOrNull('e-currency'),
+    colour: strOrNull('e-colour'),
+    url: strOrNull('e-url'),
+    availability: strOrNull('e-availability'),
+    rating: numOrNull('e-rating'),
+    available_sizes: strOrNull('e-sizes'),
+  };
+  const btn = document.getElementById('e-submit');
+  btn.disabled = true; btn.textContent = 'Enriching…';
+  try {
+    const res = await fetch(API_BASE + '/products/enrich', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Request failed');
+    resultBox.innerHTML = renderProductCard(data);
+  } catch (e) {
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enrich product';
+  }
+});
+
+function numOrNull(id) {
+  const v = document.getElementById(id).value;
+  return v === '' ? null : parseFloat(v);
+}
+function strOrNull(id) {
+  const v = document.getElementById(id).value.trim();
+  return v === '' ? null : v;
+}
+
+// ---------- BATCH ----------
+const fileInput = document.getElementById('b-file');
+document.getElementById('fileDrop').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  document.getElementById('fileLabel').textContent = fileInput.files[0] ? fileInput.files[0].name : 'Click to choose a CSV file';
+});
+
+let pollTimer = null;
+
+document.getElementById('b-submit').addEventListener('click', async () => {
+  const errBox = document.getElementById('b-error');
+  errBox.innerHTML = '';
+  if (!fileInput.files[0]) {
+    errBox.innerHTML = `<div class="error-box">Choose a CSV file first.</div>`;
+    return;
+  }
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+
+  const btn = document.getElementById('b-submit');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  try {
+    const res = await fetch(API_BASE + '/products/batch', {
+      method: 'POST', headers: authHeaders(false), body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    document.getElementById('b-progress-card').style.display = 'block';
+    document.getElementById('b-jobid').textContent = '#' + data.job_id;
+    document.getElementById('b-results').innerHTML = '';
+    pollJob(data.job_id);
+  } catch (e) {
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Upload & enrich';
+  }
+});
+
+function pollJob(jobId) {
+  if (pollTimer) clearInterval(pollTimer);
+  const bar = document.getElementById('b-bar');
+  bar.classList.add('pulsing');
+
+  const tick = async () => {
+    try {
+      const res = await fetch(API_BASE + `/jobs/${jobId}`, { headers: authHeaders(false) });
+      const job = await res.json();
+      document.getElementById('b-status').textContent = job.status;
+      document.getElementById('b-completed').textContent = job.completed;
+      document.getElementById('b-failed').textContent = job.failed;
+      document.getElementById('b-total').textContent = job.total;
+      const pct = job.total ? Math.round(((job.completed + job.failed) / job.total) * 100) : 0;
+      bar.style.width = pct + '%';
+
+      if (job.status === 'completed') {
+        clearInterval(pollTimer);
+        bar.classList.remove('pulsing');
+        const resRes = await fetch(API_BASE + `/jobs/${jobId}/results`, { headers: authHeaders(false) });
+        const products = await resRes.json();
+        document.getElementById('b-results').innerHTML = Array.isArray(products)
+          ? products.map(renderProductCard).join('')
+          : '';
+      }
+    } catch (e) { /* keep polling silently */ }
+  };
+  tick();
+  pollTimer = setInterval(tick, 3000);
+}
+
+// ---------- CATALOG ----------
+async function loadCatalog() {
+  const box = document.getElementById('c-results');
+  box.innerHTML = `<div class="empty">Loading catalog…</div>`;
+  const onlyReview = document.getElementById('c-review-only').checked;
+  const url = new URL(API_BASE + '/products');
+  if (onlyReview) url.searchParams.set('needs_review', 'true');
+  try {
+    const res = await fetch(url, { headers: authHeaders(false) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to load catalog');
+    box.innerHTML = (Array.isArray(data) && data.length)
+      ? data.map(renderProductCard).join('')
+      : `<div class="empty">No products yet — enrich one to see it here.</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  }
+}
+document.getElementById('c-refresh').addEventListener('click', loadCatalog);
+document.getElementById('c-review-only').addEventListener('change', loadCatalog);
+
+// ---------- COMPARE ----------
+document.getElementById('cmp-submit').addEventListener('click', async () => {
+  const errBox = document.getElementById('cmp-error');
+  const resultBox = document.getElementById('cmp-result');
+  errBox.innerHTML = ''; resultBox.innerHTML = '';
+  const a = document.getElementById('cmp-a').value;
+  const b = document.getElementById('cmp-b').value;
+  if (!a || !b) {
+    errBox.innerHTML = `<div class="error-box">Enter both product IDs.</div>`;
+    return;
+  }
+  const btn = document.getElementById('cmp-submit');
+  btn.disabled = true; btn.textContent = 'Comparing…';
+  try {
+    const url = new URL(API_BASE + '/products/compare');
+    url.searchParams.set('product_a_id', a);
+    url.searchParams.set('product_b_id', b);
+    const res = await fetch(url, { headers: authHeaders(false) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Compare failed');
+    resultBox.innerHTML = `
+      <div class="card">
+        <div class="verdict">Likely recommended: ${escapeHtml(String(data.likely_recommended))}</div>
+        <p style="margin:0 0 12px; font-size:13.5px; color:var(--text);">${escapeHtml(data.reasoning || '')}</p>
+        <div class="grid-2">
+          <div>
+            <div class="attr-chip" style="margin-bottom:8px;"><b>${escapeHtml(data.product_a)}</b></div>
+            <div class="hint">gaps: ${(data.product_a_gaps || []).join(', ') || 'none'}</div>
+          </div>
+          <div>
+            <div class="attr-chip" style="margin-bottom:8px;"><b>${escapeHtml(data.product_b)}</b></div>
+            <div class="hint">gaps: ${(data.product_b_gaps || []).join(', ') || 'none'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Compare';
+  }
+});
+
+// ---------- VISIBILITY: check ----------
+document.getElementById('v-submit').addEventListener('click', async () => {
+  const errBox = document.getElementById('v-error');
+  const resultBox = document.getElementById('v-result');
+  errBox.innerHTML = ''; resultBox.innerHTML = '';
+  const query = document.getElementById('v-query').value.trim();
+  const brandsRaw = document.getElementById('v-brands').value.trim();
+  if (!query || !brandsRaw) {
+    errBox.innerHTML = `<div class="error-box">Enter a query and at least one watched brand.</div>`;
+    return;
+  }
+  const watched_brands = brandsRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const btn = document.getElementById('v-submit');
+  btn.disabled = true; btn.textContent = 'Asking…';
+  try {
+    const res = await fetch(API_BASE + '/visibility/check', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ query, watched_brands })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Request failed');
+    const mentioned = data.mentioned_brands || [];
+    const chips = watched_brands.map(b => {
+      const hit = mentioned.some(m => m.toLowerCase() === b.toLowerCase());
+      return `<span class="attr-chip" style="${hit ? 'border-color:var(--sage);color:var(--sage);' : ''}">${escapeHtml(b)} ${hit ? '✓' : '·'}</span>`;
+    }).join('');
+    resultBox.innerHTML = `
+      <div class="card">
+        <div class="result-id mono" style="margin-bottom:10px;">check #${data.id ?? '—'} · ${formatDate(data.created_at)}</div>
+        <div class="hint" style="margin-bottom:10px;">natural answer</div>
+        <p style="font-size:13.5px;">${escapeHtml(data.natural_answer || '')}</p>
+        <div class="attr-row">${chips}</div>
+        <div class="gap-note">${escapeHtml(data.reasoning || '')}</div>
+      </div>
+    `;
+  } catch (e) {
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Run check';
+  }
+});
+
+// ---------- VISIBILITY: history ----------
+document.getElementById('h-submit').addEventListener('click', async () => {
+  const errBox = document.getElementById('h-error');
+  const resultBox = document.getElementById('h-result');
+  errBox.innerHTML = ''; resultBox.innerHTML = '';
+  const brand = document.getElementById('h-brand').value.trim();
+  if (!brand) {
+    errBox.innerHTML = `<div class="error-box">Enter a brand name.</div>`;
+    return;
+  }
+  const btn = document.getElementById('h-submit');
+  btn.disabled = true; btn.textContent = 'Looking up…';
+  try {
+    const url = new URL(API_BASE + '/visibility/history');
+    url.searchParams.set('brand', brand);
+    const res = await fetch(url, { headers: authHeaders(false) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Request failed');
+    const pct = Math.round((data.share_of_voice || 0) * 100);
+    const rows = (data.history || []).map(h => `
+      <div class="mention-row">
+        <span class="q">${escapeHtml(h.query)} <span style="color:var(--text-dim);">· ${formatDate(h.created_at)}</span></span>
+        <span class="m ${h.mentioned ? 'yes' : 'no'}">${h.mentioned ? 'mentioned' : 'not mentioned'}</span>
+      </div>
+    `).join('');
+    resultBox.innerHTML = `
+      <div style="margin-top:14px;">
+        <div class="hint">${data.mentioned_count} of ${data.total_checks} checks mentioned ${escapeHtml(brand)}</div>
+        <div class="sov-bar-wrap"><div class="sov-bar" style="width:${pct}%">${pct}%</div></div>
+        <div class="brand-mention-list">${rows || '<div class="empty">No checks recorded yet for this brand.</div>'}</div>
+      </div>
+    `;
+  } catch (e) {
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Look up';
+  }
+});
+</script>
+
+</body>
+</html>
