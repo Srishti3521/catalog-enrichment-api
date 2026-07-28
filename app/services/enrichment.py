@@ -1,6 +1,8 @@
 import asyncio
 import csv
 import io
+import json
+import math
 from app.llm.client import LLMClient
 from app.repositories.product_repo import ProductRepository
 from app.repositories.job_repo import JobRepository
@@ -20,6 +22,7 @@ def compute_completeness_score(enriched_data: dict) -> float:
     filled = sum(1 for field in ENRICHED_FIELDS if enriched_data.get(field))
     return round(filled / len(ENRICHED_FIELDS), 2)
 
+
 def flag_needs_review(enriched_data: dict, completeness_score: float = None) -> bool:
     vague_values = {"various", "unknown", "n/a", "unclear", "assorted"}
     for field in ENRICHED_FIELDS:
@@ -32,6 +35,7 @@ def flag_needs_review(enriched_data: dict, completeness_score: float = None) -> 
         return True
     return False
 
+
 FIELD_LABELS = {
     "material": "material",
     "use_case": "use case",
@@ -43,8 +47,8 @@ FIELD_LABELS = {
     "differentiators": "differentiators",
 }
 
-def build_gap_summary(enriched_data: dict) -> tuple[str, str]:
-    """Returns (missing_fields_csv, human_readable_summary)."""
+
+def build_gap_summary(enriched_data: dict) -> tuple:
     missing = [field for field in ENRICHED_FIELDS if not enriched_data.get(field)]
 
     if not missing:
@@ -63,52 +67,25 @@ def build_gap_summary(enriched_data: dict) -> tuple[str, str]:
         f"can match and recommend it for related searches."
     )
     return ", ".join(missing), summary
+
+
 def to_schema_org(product) -> dict:
-    """Formats an enriched product as schema.org/Product JSON-LD."""
     additional_properties = []
 
     if product.material:
-        additional_properties.append({
-            "@type": "PropertyValue",
-            "name": "material",
-            "value": product.material,
-        })
+        additional_properties.append({"@type": "PropertyValue", "name": "material", "value": product.material})
     if product.use_case:
-        additional_properties.append({
-            "@type": "PropertyValue",
-            "name": "use case",
-            "value": product.use_case,
-        })
+        additional_properties.append({"@type": "PropertyValue", "name": "use case", "value": product.use_case})
     if product.size_range:
-        additional_properties.append({
-            "@type": "PropertyValue",
-            "name": "size range",
-            "value": product.size_range,
-        })
+        additional_properties.append({"@type": "PropertyValue", "name": "size range", "value": product.size_range})
     if product.gender:
-        additional_properties.append({
-            "@type": "PropertyValue",
-            "name": "gender",
-            "value": product.gender,
-        })
+        additional_properties.append({"@type": "PropertyValue", "name": "gender", "value": product.gender})
     if product.weather_resistance:
-        additional_properties.append({
-            "@type": "PropertyValue",
-            "name": "weather resistance",
-            "value": product.weather_resistance,
-        })
+        additional_properties.append({"@type": "PropertyValue", "name": "weather resistance", "value": product.weather_resistance})
     if product.target_audience:
-        additional_properties.append({
-            "@type": "PropertyValue",
-            "name": "target audience",
-            "value": product.target_audience,
-        })
+        additional_properties.append({"@type": "PropertyValue", "name": "target audience", "value": product.target_audience})
     if product.differentiators:
-        additional_properties.append({
-            "@type": "PropertyValue",
-            "name": "differentiators",
-            "value": product.differentiators,
-        })
+        additional_properties.append({"@type": "PropertyValue", "name": "differentiators", "value": product.differentiators})
 
     schema = {
         "@context": "https://schema.org/",
@@ -122,6 +99,17 @@ def to_schema_org(product) -> dict:
         schema["keywords"] = product.key_features
 
     return schema
+
+
+def cosine_similarity(vec_a, vec_b):
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    norm_a = math.sqrt(sum(a * a for a in vec_a))
+    norm_b = math.sqrt(sum(b * b for b in vec_b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
 def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRepository,
                      price: float = None, currency: str = None, colour: str = None,
                      url: str = None, availability: str = None, rating: float = None,
@@ -152,6 +140,7 @@ def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRe
             "status": "enrichment_failed",
             "missing_fields": "material, use_case, size_range, gender, weather_resistance, key_features, target_audience, differentiators",
             "gap_summary": "Enrichment failed, so no attributes could be extracted from this listing.",
+            "embedding": None,
         }
         return repo.save(product_record)
 
@@ -184,6 +173,14 @@ def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRe
         "gap_summary": gap_summary,
     }
 
+    embedding_text = f"{name}. {description}. {_to_string(enriched_data.get('key_features')) or ''}"
+    try:
+        embedding_vector = llm.embed_text(embedding_text)
+        product_record["embedding"] = json.dumps(embedding_vector)
+    except Exception as e:
+        print(f"EMBEDDING FAILED for {name}: {e}")
+        product_record["embedding"] = None
+
     return repo.save(product_record)
 
 
@@ -201,7 +198,7 @@ async def process_batch(file_bytes: bytes, job_id: str, llm: LLMClient):
     rows = list(reader)
 
     semaphore = asyncio.Semaphore(1)
-    
+
     def process_row_sync(row):
         db = SessionLocal()
         try:
@@ -251,15 +248,7 @@ async def process_batch(file_bytes: bytes, job_id: str, llm: LLMClient):
     JobRepository(db).update_progress(job_id, status="completed")
     db.close()
 
-    async def process_row(row):
-        async with semaphore:
-            await asyncio.to_thread(process_row_sync, row)
 
-    await asyncio.gather(*(process_row(row) for row in rows))
-
-    db = SessionLocal()
-    JobRepository(db).update_progress(job_id, status="completed")
-    db.close()
 def compare_products(product_a, product_b, llm: LLMClient) -> dict:
     a_dict = {
         "name": product_a.name, "material": product_a.material, "use_case": product_a.use_case,
@@ -294,7 +283,58 @@ def compare_products(product_a, product_b, llm: LLMClient) -> dict:
         "product_a_gaps": result.get("product_a_gaps", []),
         "product_b_gaps": result.get("product_b_gaps", []),
     }
-def check_product_visibility(query: str, watched_brands: list[str], llm: LLMClient, repo) -> dict:
+
+
+def match_and_compare(competitor_name: str, competitor_description: str, llm: LLMClient, repo: ProductRepository) -> dict:
+    query_text = f"{competitor_name}. {competitor_description}"
+    query_vector = llm.embed_text(query_text)
+
+    all_products = repo.get_all()
+    scored = []
+    for p in all_products:
+        if not p.embedding:
+            continue
+        try:
+            p_vector = json.loads(p.embedding)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        scored.append((cosine_similarity(query_vector, p_vector), p))
+
+    if not scored:
+        return {
+            "matched_product_id": None,
+            "similarity": 0.0,
+            "comparison": None,
+            "message": "No embedded products in your catalog yet — enrich some products first.",
+        }
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_product = scored[0]
+
+    confidence = "strong" if best_score >= 0.75 else "weak" if best_score < 0.6 else "moderate"
+    confidence_note = (
+        "This is a strong match — the two products are genuinely comparable."
+        if confidence == "strong" else
+        "This is a weak match — no closely related product exists in your catalog yet, so treat this comparison with caution."
+        if confidence == "weak" else
+        "This is a moderate match — related, but not a close equivalent."
+    )
+
+    competitor_obj = enrich_and_save(competitor_name, competitor_description, llm, repo)
+    comparison = compare_products(competitor_obj, best_product, llm)
+
+    return {
+        "competitor_name": competitor_name,
+        "matched_product_id": best_product.id,
+        "matched_product_name": best_product.name,
+        "similarity": round(best_score, 3),
+        "match_confidence": confidence,
+        "match_confidence_note": confidence_note,
+        "comparison": comparison,
+    }
+
+
+def check_product_visibility(query: str, watched_brands: list, llm: LLMClient, repo) -> dict:
     result = llm.check_visibility(query, watched_brands)
 
     if result.get("_parse_failed"):
@@ -333,6 +373,8 @@ def check_product_visibility(query: str, watched_brands: list[str], llm: LLMClie
         "reasoning": reasoning,
         "created_at": record.created_at,
     }
+
+
 def get_brand_visibility_history(brand: str, repo) -> dict:
     checks = repo.get_history_for_brand(brand)
 
@@ -361,4 +403,3 @@ def get_brand_visibility_history(brand: str, repo) -> dict:
         "share_of_voice": share_of_voice,
         "history": history,
     }
-   

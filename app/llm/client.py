@@ -5,13 +5,14 @@ import re
 import time
 from app.core.config import settings
 
+
 class LLMClient:
     def __init__(self):
         self.client = genai.Client(api_key=settings.LLM_API_KEY)
         self.model = "gemini-flash-lite-latest"
 
     def enrich(self, name: str, description: str) -> dict:
-       prompt = f"""You are a product data enrichment assistant.
+        prompt = f"""You are a product data enrichment assistant.
 
 Given this product, extract the following fields as JSON:
 - material
@@ -32,8 +33,8 @@ Product name: {name}
 Product description: {description}
 """
 
-       max_retries = 3
-       for attempt in range(max_retries):
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
                 response = self.client.models.generate_content(
                     model=self.model,
@@ -43,11 +44,12 @@ Product description: {description}
                 return self._parse_response(raw_text)
             except Exception as e:
                 if "RESOURCE_EXHAUSTED" in str(e) and attempt < max_retries - 1:
-                    wait_time = 15 * (attempt + 1)  # 15s, 30s, 45s
+                    wait_time = 15 * (attempt + 1)
                     print(f"Rate limited, waiting {wait_time}s before retry...")
                     time.sleep(wait_time)
                 else:
                     raise
+
     def compare(self, product_a: dict, product_b: dict) -> dict:
         prompt = f"""You are an AI shopping assistant evaluator.
 
@@ -99,20 +101,8 @@ Return ONLY valid JSON in this exact shape, nothing else:
                     print(f"Rate limited, waiting {wait_time}s before retry...")
                     time.sleep(wait_time)
                 else:
-                    raise            
+                    raise
 
-    def _parse_response(self, raw_text: str) -> dict:
-        try:
-            return json.loads(raw_text)
-        except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-            if match:
-                try:
-                    return json.loads(match.group(0))
-                except json.JSONDecodeError:
-                    pass
-        return {"_parse_failed": True, "_raw_response": raw_text}
-    
     def check_visibility(self, query: str, watched_brands: list[str]) -> dict:
         brands_str = ", ".join(watched_brands)
         prompt = f"""You are simulating how an AI shopping assistant would answer a real customer's question.
@@ -146,3 +136,33 @@ After answering naturally, also return a structured analysis. Respond in this ex
                     time.sleep(wait_time)
                 else:
                     raise
+
+    def embed_text(self, text: str) -> list:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.embed_content(
+                    model="gemini-embedding-001",
+                    contents=text,
+                )
+                embedding_obj = response.embeddings[0]
+                return list(embedding_obj.values)
+            except Exception as e:
+                if "RESOURCE_EXHAUSTED" in str(e) and attempt < max_retries - 1:
+                    wait_time = 15 * (attempt + 1)
+                    print(f"Rate limited, waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                else:
+                    raise
+
+    def _parse_response(self, raw_text: str) -> dict:
+        try:
+            return json.loads(raw_text)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    pass
+        return {"_parse_failed": True, "_raw_response": raw_text}

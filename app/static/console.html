@@ -680,6 +680,22 @@
       <div id="cmp-error"></div>
     </div>
     <div id="cmp-result"></div>
+
+    <div class="card">
+      <h2>Match a competitor product</h2>
+      <p class="hint">Paste a competitor's product name and description — this embeds it, finds the closest match in your own catalog by meaning (not keywords), and runs the same recommendation comparison on that pair.</p>
+      <div class="field">
+        <label>Competitor product name</label>
+        <input type="text" id="match-name" placeholder="Adidas Ultraboost Rain Runner" />
+      </div>
+      <div class="field">
+        <label>Competitor product description</label>
+        <textarea id="match-description" placeholder="A breathable, water-resistant running shoe..."></textarea>
+      </div>
+      <button class="action" id="match-submit">Find match &amp; compare</button>
+      <div id="match-error"></div>
+    </div>
+    <div id="match-result"></div>
   </section>
 
   <!-- VISIBILITY -->
@@ -1067,6 +1083,64 @@ document.getElementById('cmp-submit').addEventListener('click', async () => {
     errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
   } finally {
     btn.disabled = false; btn.textContent = 'Compare';
+  }
+});
+
+// ---------- MATCH (embeddings) ----------
+document.getElementById('match-submit').addEventListener('click', async () => {
+  const errBox = document.getElementById('match-error');
+  const resultBox = document.getElementById('match-result');
+  errBox.innerHTML = ''; resultBox.innerHTML = '';
+  const name = document.getElementById('match-name').value.trim();
+  const description = document.getElementById('match-description').value.trim();
+  if (!name || !description) {
+    errBox.innerHTML = `<div class="error-box">Enter both a name and description.</div>`;
+    return;
+  }
+  const btn = document.getElementById('match-submit');
+  btn.disabled = true; btn.textContent = 'Matching…';
+  try {
+    const res = await fetch(API_BASE + '/products/match', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ name, description })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Match failed');
+
+    if (!data.matched_product_id) {
+      resultBox.innerHTML = `<div class="card"><div class="empty">${escapeHtml(data.message || 'No match found.')}</div></div>`;
+      return;
+    }
+
+    const pct = Math.round((data.similarity || 0) * 100);
+    const cmp = data.comparison || {};
+    const conf = data.match_confidence || 'moderate';
+    const confColor = conf === 'strong' ? 'var(--sage)' : conf === 'weak' ? 'var(--rust)' : 'var(--amber)';
+    resultBox.innerHTML = `
+      <div class="card">
+        <div class="hint" style="margin-bottom:6px;">closest match in your catalog</div>
+        <div class="result-name" style="margin-bottom:6px;">${escapeHtml(data.matched_product_name)} <span class="result-id mono">#${data.matched_product_id}</span></div>
+        <div class="sov-bar-wrap"><div class="sov-bar" style="width:${pct}%">${pct}% similar</div></div>
+        <div style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:11px; color:${confColor};">
+          ${conf.toUpperCase()} MATCH — ${escapeHtml(data.match_confidence_note || '')}
+        </div>
+        <div class="verdict" style="margin-top:16px;">Likely recommended: ${escapeHtml(String(cmp.likely_recommended || '—'))}</div>
+        <p style="margin:0 0 12px; font-size:13.5px;">${escapeHtml(cmp.reasoning || '')}</p>
+        <div class="grid-2">
+          <div>
+            <div class="attr-chip" style="margin-bottom:8px;"><b>${escapeHtml(name)}</b> (competitor)</div>
+            <div class="hint">gaps: ${(cmp.product_a_gaps || []).join(', ') || 'none'}</div>
+          </div>
+          <div>
+            <div class="attr-chip" style="margin-bottom:8px;"><b>${escapeHtml(data.matched_product_name)}</b> (yours)</div>
+            <div class="hint">gaps: ${(cmp.product_b_gaps || []).join(', ') || 'none'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Find match & compare';
   }
 });
 

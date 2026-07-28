@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.core.dependencies import get_llm_client, get_product_repo
 from app.core.security import verify_api_key
+import datetime
 
 
 class FakeLLMClient:
@@ -13,8 +14,13 @@ class FakeLLMClient:
             "size_range": None,
             "gender": "unisex",
             "weather_resistance": "water-resistant",
+            "key_features": "lightweight, breathable",
+            "target_audience": "runners",
+            "differentiators": None,
         }
 
+    def embed_text(self, text):
+        return [0.1, 0.2, 0.3, 0.4]
 
 class FakeProductRepository:
     def __init__(self):
@@ -23,6 +29,7 @@ class FakeProductRepository:
 
     def save(self, product_record):
         product_record["id"] = self.next_id
+        product_record.setdefault("created_at", datetime.datetime.now(datetime.timezone.utc))
         self.products[self.next_id] = product_record
         self.next_id += 1
         return product_record
@@ -68,7 +75,7 @@ def test_enrich_product_success():
     assert response.status_code == 200
     data = response.json()
     assert data["material"] == "mesh"
-    assert data["completeness_score"] == 0.8
+    assert data["completeness_score"] == 0.75
 
 
 def test_get_product_not_found():

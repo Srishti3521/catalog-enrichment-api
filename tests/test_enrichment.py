@@ -8,6 +8,9 @@ def test_completeness_score_all_fields_filled():
         "size_range": "M-XL",
         "gender": "unisex",
         "weather_resistance": "water-resistant",
+        "key_features": "lightweight, breathable",
+        "target_audience": "casual runners",
+        "differentiators": "combines light weight with water resistance",
     }
     assert compute_completeness_score(data) == 1.0
 
@@ -19,8 +22,11 @@ def test_completeness_score_partial_fields():
         "size_range": None,
         "gender": None,
         "weather_resistance": None,
+        "key_features": None,
+        "target_audience": None,
+        "differentiators": None,
     }
-    assert compute_completeness_score(data) == 0.4
+    assert compute_completeness_score(data) == 0.25
 
 
 def test_completeness_score_no_fields():
@@ -66,12 +72,14 @@ from app.services.enrichment import enrich_and_save
 
 
 class FakeLLMClient:
-    """A stand-in for LLMClient that returns canned responses instead of calling Gemini."""
     def __init__(self, fake_response):
         self.fake_response = fake_response
 
     def enrich(self, name, description):
         return self.fake_response
+
+    def embed_text(self, text):
+        return [0.1, 0.2, 0.3, 0.4]
 
 
 class FakeProductRepository:
@@ -92,6 +100,9 @@ def test_enrich_and_save_with_good_data():
         "size_range": None,
         "gender": "unisex",
         "weather_resistance": "water-resistant",
+        "key_features": "lightweight, breathable",
+        "target_audience": "runners",
+        "differentiators": None,
     })
     fake_repo = FakeProductRepository()
 
@@ -99,7 +110,7 @@ def test_enrich_and_save_with_good_data():
 
     assert result["status"] == "completed"
     assert result["material"] == "mesh"
-    assert result["completeness_score"] == 0.8
+    assert result["completeness_score"] == 0.75
     assert len(fake_repo.saved_products) == 1
 
 
