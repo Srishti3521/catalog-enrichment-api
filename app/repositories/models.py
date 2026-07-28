@@ -30,6 +30,7 @@ class ProductDB(Base):
     missing_fields = Column(String, nullable=True)
     gap_summary = Column(String, nullable=True)
     embedding = Column(String, nullable=True)
+    is_competitor = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

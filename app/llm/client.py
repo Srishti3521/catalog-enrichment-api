@@ -55,8 +55,9 @@ Product description: {description}
 
 Given two enriched product profiles below, determine which one an AI shopping assistant would more likely recommend for a relevant shopping query, and explain why — based only on the structured information provided, not on brand reputation or price.
 
-Product A:
-Name: {product_a['name']}
+Always refer to each product by its actual name in your reasoning — never use generic labels like "Product A" or "Product B".
+
+{product_a['name']}:
 Material: {product_a['material']}
 Use case: {product_a['use_case']}
 Size range: {product_a['size_range']}
@@ -66,8 +67,7 @@ Key features: {product_a['key_features']}
 Target audience: {product_a['target_audience']}
 Differentiators: {product_a['differentiators']}
 
-Product B:
-Name: {product_b['name']}
+{product_b['name']}:
 Material: {product_b['material']}
 Use case: {product_b['use_case']}
 Size range: {product_b['size_range']}
@@ -80,9 +80,9 @@ Differentiators: {product_b['differentiators']}
 Return ONLY valid JSON in this exact shape, nothing else:
 {{
   "likely_recommended": "product_a" or "product_b" or "tie",
-  "reasoning": "a short paragraph explaining the decision, referencing specific missing or present attributes",
-  "product_a_gaps": ["list of fields product A is missing that product B has"],
-  "product_b_gaps": ["list of fields product B is missing that product A has"]
+  "reasoning": "a short paragraph explaining the decision, referring to each product by its actual name given above, never as 'Product A' or 'Product B'",
+  "product_a_gaps": ["list of fields the first product is missing that the second has"],
+  "product_b_gaps": ["list of fields the second product is missing that the first has"]
 }}
 """
 

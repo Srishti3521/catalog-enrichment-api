@@ -113,7 +113,7 @@ def cosine_similarity(vec_a, vec_b):
 def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRepository,
                      price: float = None, currency: str = None, colour: str = None,
                      url: str = None, availability: str = None, rating: float = None,
-                     available_sizes: str = None) -> dict:
+                     available_sizes: str = None, is_competitor: bool = False) -> dict:
     enriched_data = llm.enrich(name, description)
 
     if enriched_data.get("_parse_failed"):
@@ -141,6 +141,7 @@ def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRe
             "missing_fields": "material, use_case, size_range, gender, weather_resistance, key_features, target_audience, differentiators",
             "gap_summary": "Enrichment failed, so no attributes could be extracted from this listing.",
             "embedding": None,
+            "is_competitor": is_competitor,
         }
         return repo.save(product_record)
 
@@ -171,6 +172,7 @@ def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRe
         "status": "completed",
         "missing_fields": missing_fields,
         "gap_summary": gap_summary,
+        "is_competitor": is_competitor,
     }
 
     embedding_text = f"{name}. {description}. {_to_string(enriched_data.get('key_features')) or ''}"
@@ -275,10 +277,18 @@ def compare_products(product_a, product_b, llm: LLMClient) -> dict:
             "product_b_gaps": [],
         }
 
+    raw_recommendation = result.get("likely_recommended")
+    if raw_recommendation == "product_a":
+        recommended_name = product_a.name
+    elif raw_recommendation == "product_b":
+        recommended_name = product_b.name
+    else:
+        recommended_name = "tie"
+
     return {
         "product_a": product_a.name,
         "product_b": product_b.name,
-        "likely_recommended": result.get("likely_recommended"),
+        "likely_recommended": recommended_name,
         "reasoning": result.get("reasoning"),
         "product_a_gaps": result.get("product_a_gaps", []),
         "product_b_gaps": result.get("product_b_gaps", []),
@@ -289,7 +299,7 @@ def match_and_compare(competitor_name: str, competitor_description: str, llm: LL
     query_text = f"{competitor_name}. {competitor_description}"
     query_vector = llm.embed_text(query_text)
 
-    all_products = repo.get_all()
+    all_products = repo.get_all(include_competitors=False)
     scored = []
     for p in all_products:
         if not p.embedding:
@@ -320,7 +330,7 @@ def match_and_compare(competitor_name: str, competitor_description: str, llm: LL
         "This is a moderate match — related, but not a close equivalent."
     )
 
-    competitor_obj = enrich_and_save(competitor_name, competitor_description, llm, repo)
+    competitor_obj = enrich_and_save(competitor_name, competitor_description, llm, repo, is_competitor=True)
     comparison = compare_products(competitor_obj, best_product, llm)
 
     return {
