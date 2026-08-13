@@ -113,7 +113,8 @@ def cosine_similarity(vec_a, vec_b):
 def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRepository,
                      price: float = None, currency: str = None, colour: str = None,
                      url: str = None, availability: str = None, rating: float = None,
-                     available_sizes: str = None, is_competitor: bool = False) -> dict:
+                     available_sizes: str = None, is_competitor: bool = False,
+                     job_id: str = None) -> dict:
     enriched_data = llm.enrich(name, description)
 
     if enriched_data.get("_parse_failed"):
@@ -142,6 +143,7 @@ def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRe
             "gap_summary": "Enrichment failed, so no attributes could be extracted from this listing.",
             "embedding": None,
             "is_competitor": is_competitor,
+            "job_id": job_id,
         }
         return repo.save(product_record)
 
@@ -173,6 +175,7 @@ def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRe
         "missing_fields": missing_fields,
         "gap_summary": gap_summary,
         "is_competitor": is_competitor,
+        "job_id": job_id,
     }
 
     embedding_text = f"{name}. {description}. {_to_string(enriched_data.get('key_features')) or ''}"
@@ -230,7 +233,7 @@ async def process_batch(file_bytes: bytes, job_id: str, llm: LLMClient):
                     name, description, llm, repo,
                     price=price, currency=currency, colour=colour,
                     url=url, availability=availability, rating=rating,
-                    available_sizes=available_sizes,
+                    available_sizes=available_sizes, job_id=job_id,
                 )
                 job_repo.update_progress(job_id, completed=1)
             except Exception as e:

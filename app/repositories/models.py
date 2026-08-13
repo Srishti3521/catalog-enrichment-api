@@ -32,7 +32,7 @@ class ProductDB(Base):
     embedding = Column(String, nullable=True)
     is_competitor = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
+    job_id = Column(String, nullable=True)
 
 class JobDB(Base):
     __tablename__ = "jobs"

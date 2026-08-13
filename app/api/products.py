@@ -8,6 +8,7 @@ from app.repositories.product_repo import ProductRepository
 from app.repositories.job_repo import JobRepository
 from app.repositories.visibility_repo import VisibilityRepository
 from app.llm.client import LLMClient
+from fastapi.responses import StreamingResponse
 from app.services.enrichment import (
     enrich_and_save,
     process_batch,
@@ -62,7 +63,7 @@ def visibility_history(
     return get_brand_visibility_history(brand, repo)
 
 
-@router.get("/products", dependencies=[Depends(verify_api_key)])
+@router.get("/products", dependencies=[Depends(verify_api_key)],response_model=list[EnrichedProduct])
 def list_products(needs_review: bool | None = None, repo: ProductRepository = Depends(get_product_repo)):
     return repo.get_all(needs_review=needs_review)
 
@@ -111,7 +112,7 @@ def get_job_status(job_id: str, job_repo: JobRepository = Depends(get_job_repo))
     return job
 
 
-@router.get("/jobs/{job_id}/results", dependencies=[Depends(verify_api_key)])
+@router.get("/jobs/{job_id}/results", dependencies=[Depends(verify_api_key)], response_model=list[EnrichedProduct] | dict)
 def get_job_results(
     job_id: str,
     job_repo: JobRepository = Depends(get_job_repo),
@@ -134,6 +135,34 @@ def get_product_schema_org(product_id: int, repo: ProductRepository = Depends(ge
 
 
 # --- Generic/dynamic path LAST ---
+@router.get("/products/export", dependencies=[Depends(verify_api_key)])
+def export_products_csv(repo: ProductRepository = Depends(get_product_repo)):
+    products = repo.get_all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "name", "description", "price", "currency", "colour", "url",
+        "availability", "rating", "available_sizes",
+        "material", "use_case", "size_range", "gender", "weather_resistance",
+        "key_features", "target_audience", "differentiators",
+        "completeness_score", "needs_review", "missing_fields", "gap_summary",
+    ])
+    for p in products:
+        writer.writerow([
+            p.id, p.name, p.description, p.price, p.currency, p.colour, p.url,
+            p.availability, p.rating, p.available_sizes,
+            p.material, p.use_case, p.size_range, p.gender, p.weather_resistance,
+            p.key_features, p.target_audience, p.differentiators,
+            p.completeness_score, p.needs_review, p.missing_fields, p.gap_summary,
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=catalog_export.csv"},
+    )
 
 @router.get("/products/{product_id}", dependencies=[Depends(verify_api_key)], response_model=EnrichedProduct)
 def get_product(product_id: int, repo: ProductRepository = Depends(get_product_repo)):
@@ -141,3 +170,35 @@ def get_product(product_id: int, repo: ProductRepository = Depends(get_product_r
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
+
+
+@router.get("/jobs/{job_id}/export", dependencies=[Depends(verify_api_key)])
+def export_job_csv(job_id: str, repo: ProductRepository = Depends(get_product_repo)):
+    products = repo.get_by_job_id(job_id)
+    if not products:
+        raise HTTPException(status_code=404, detail="No products found for this job")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "name", "description", "price", "currency", "colour", "url",
+        "availability", "rating", "available_sizes",
+        "material", "use_case", "size_range", "gender", "weather_resistance",
+        "key_features", "target_audience", "differentiators",
+        "completeness_score", "needs_review", "missing_fields", "gap_summary",
+    ])
+    for p in products:
+        writer.writerow([
+            p.id, p.name, p.description, p.price, p.currency, p.colour, p.url,
+            p.availability, p.rating, p.available_sizes,
+            p.material, p.use_case, p.size_range, p.gender, p.weather_resistance,
+            p.key_features, p.target_audience, p.differentiators,
+            p.completeness_score, p.needs_review, p.missing_fields, p.gap_summary,
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=job_{job_id}_export.csv"},
+    )

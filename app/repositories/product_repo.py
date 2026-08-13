@@ -23,3 +23,7 @@ class ProductRepository:
         if needs_review is not None:
             query = query.filter(ProductDB.needs_review == needs_review)
         return query.all()
+
+    def get_by_job_id(self, job_id: str):
+        return self.db.query(ProductDB).filter(ProductDB.job_id == job_id).all()
+    

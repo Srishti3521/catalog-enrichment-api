@@ -650,6 +650,7 @@
         <span>failed: <b id="b-failed">0</b></span>
         <span>total: <b id="b-total">0</b></span>
       </div>
+      <button class="ghost" id="b-download" style="display:none; margin-top:14px;">Download this batch as CSV</button>
     </div>
 
     <div id="b-results"></div>
@@ -661,7 +662,8 @@
       <div class="toggle-row">
         <input type="checkbox" id="c-review-only" />
         <label for="c-review-only" style="margin:0;">show only products flagged for review</label>
-        <button class="ghost" id="c-refresh" style="margin-left:auto;">Refresh</button>
+        <button class="ghost" id="c-download" style="margin-left:auto;">Download catalog CSV</button>
+        <button class="ghost" id="c-refresh">Refresh</button>
       </div>
       <div id="c-results"><div class="empty">Loading catalog…</div></div>
     </div>
@@ -983,6 +985,7 @@ document.getElementById('b-submit').addEventListener('click', async () => {
     document.getElementById('b-progress-card').style.display = 'block';
     document.getElementById('b-jobid').textContent = '#' + data.job_id;
     document.getElementById('b-results').innerHTML = '';
+    document.getElementById('b-download').style.display = 'none';
     pollJob(data.job_id);
   } catch (e) {
     errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
@@ -990,6 +993,29 @@ document.getElementById('b-submit').addEventListener('click', async () => {
     btn.disabled = false; btn.textContent = 'Upload & enrich';
   }
 });
+
+async function downloadJobCsv(jobId) {
+  const btn = document.getElementById('b-download');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparing download…';
+  try {
+    const res = await fetch(API_BASE + `/jobs/${jobId}/export`, { headers: authHeaders(false) });
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `job_${jobId}_export.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Could not download CSV: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
 
 function pollJob(jobId) {
   if (pollTimer) clearInterval(pollTimer);
@@ -1015,6 +1041,9 @@ function pollJob(jobId) {
         document.getElementById('b-results').innerHTML = Array.isArray(products)
           ? products.map(renderProductCard).join('')
           : '';
+        const downloadBtn = document.getElementById('b-download');
+        downloadBtn.style.display = 'inline-block';
+        downloadBtn.onclick = () => downloadJobCsv(jobId);
       }
     } catch (e) { /* keep polling silently */ }
   };
@@ -1042,6 +1071,28 @@ async function loadCatalog() {
 }
 document.getElementById('c-refresh').addEventListener('click', loadCatalog);
 document.getElementById('c-review-only').addEventListener('change', loadCatalog);
+document.getElementById('c-download').addEventListener('click', async () => {
+  const btn = document.getElementById('c-download');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparing…';
+  try {
+    const res = await fetch(API_BASE + '/products/export', { headers: authHeaders(false) });
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'catalog_export.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Could not download CSV: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+});
 
 // ---------- COMPARE ----------
 document.getElementById('cmp-submit').addEventListener('click', async () => {
