@@ -659,6 +659,12 @@
   <!-- CATALOG -->
   <section class="panel" id="panel-catalog">
     <div class="card">
+      <div class="job-meta" id="c-summary" style="margin-bottom:16px;">
+        <span>total: <b id="cs-total">—</b></span>
+        <span>avg score: <b id="cs-avg">—</b></span>
+        <span>needs review: <b id="cs-review">—</b></span>
+        <span>low / moderate / high: <b id="cs-dist">—</b></span>
+      </div>
       <div class="toggle-row">
         <input type="checkbox" id="c-review-only" />
         <label for="c-review-only" style="margin:0;">show only products flagged for review</label>
@@ -727,6 +733,21 @@
       <button class="action" id="h-submit">Look up</button>
       <div id="h-error"></div>
       <div id="h-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>Generate an AI Visibility Benchmark Report</h2>
+      <p class="hint">Runs every query below against all watched brands and produces a downloadable ranked report — good for a full sweep instead of one query at a time.</p>
+      <div class="field">
+        <label>Watched brands (comma separated)</label>
+        <input type="text" id="r-brands" placeholder="Nike, Adidas, Brooks, Asics" />
+      </div>
+      <div class="field">
+        <label>Queries (one per line)</label>
+        <textarea id="r-queries" placeholder="best waterproof running shoes under $100&#10;lightweight running shoes for beginners&#10;best sneakers for wide feet" style="min-height:100px;"></textarea>
+      </div>
+      <button class="action" id="r-submit">Generate report</button>
+      <div id="r-error"></div>
     </div>
   </section>
 
@@ -1052,9 +1073,24 @@ function pollJob(jobId) {
 }
 
 // ---------- CATALOG ----------
+async function loadAnalyticsSummary() {
+  try {
+    const res = await fetch(API_BASE + '/analytics/summary', { headers: authHeaders(false) });
+    const data = await res.json();
+    if (!res.ok) return;
+    const c = data.catalog || {};
+    const dist = c.score_distribution || {};
+    document.getElementById('cs-total').textContent = c.total_products ?? '—';
+    document.getElementById('cs-avg').textContent = c.avg_completeness_score != null ? Math.round(c.avg_completeness_score * 100) + '%' : '—';
+    document.getElementById('cs-review').textContent = c.needs_review_count ?? '—';
+    document.getElementById('cs-dist').textContent = `${dist.low ?? 0} / ${dist.moderate ?? 0} / ${dist.high ?? 0}`;
+  } catch (e) { /* leave dashes on failure */ }
+}
+
 async function loadCatalog() {
   const box = document.getElementById('c-results');
   box.innerHTML = `<div class="empty">Loading catalog…</div>`;
+  loadAnalyticsSummary();
   const onlyReview = document.getElementById('c-review-only').checked;
   const url = new URL(API_BASE + '/products');
   if (onlyReview) url.searchParams.set('needs_review', 'true');
@@ -1272,6 +1308,44 @@ document.getElementById('h-submit').addEventListener('click', async () => {
     errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
   } finally {
     btn.disabled = false; btn.textContent = 'Look up';
+  }
+});
+
+document.getElementById('r-submit').addEventListener('click', async () => {
+  const errBox = document.getElementById('r-error');
+  errBox.innerHTML = '';
+  const brandsRaw = document.getElementById('r-brands').value.trim();
+  const queriesRaw = document.getElementById('r-queries').value.trim();
+  if (!brandsRaw || !queriesRaw) {
+    errBox.innerHTML = `<div class="error-box">Enter watched brands and at least one query.</div>`;
+    return;
+  }
+  const brands = brandsRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const queries = queriesRaw.split('\n').map(s => s.trim()).filter(Boolean);
+
+  const btn = document.getElementById('r-submit');
+  btn.disabled = true; btn.textContent = `Running ${queries.length} quer${queries.length === 1 ? 'y' : 'ies'}…`;
+  try {
+    const res = await fetch(API_BASE + '/reports/benchmark', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ brands, queries })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || 'Report generation failed');
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ai_visibility_report.html';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Generate report';
   }
 });
 </script>
