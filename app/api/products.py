@@ -18,6 +18,10 @@ from app.services.enrichment import (
     get_brand_visibility_history,
     match_and_compare,
 )
+from app.services.analytics import get_catalog_summary, get_visibility_summary
+from app.schemas.product import BenchmarkReportRequest
+from app.services.report import generate_benchmark_data, render_report_html
+from fastapi.responses import HTMLResponse
 
 router = APIRouter()
 
@@ -201,4 +205,28 @@ def export_job_csv(job_id: str, repo: ProductRepository = Depends(get_product_re
         io.BytesIO(output.getvalue().encode()),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=job_{job_id}_export.csv"},
+    )
+
+@router.get("/analytics/summary", dependencies=[Depends(verify_api_key)])
+def analytics_summary(
+    product_repo: ProductRepository = Depends(get_product_repo),
+    visibility_repo: VisibilityRepository = Depends(get_visibility_repo),
+):
+    return {
+        "catalog": get_catalog_summary(product_repo),
+        "visibility": get_visibility_summary(visibility_repo),
+    }
+
+@router.post("/reports/benchmark", dependencies=[Depends(verify_api_key)])
+def benchmark_report(
+    request: BenchmarkReportRequest,
+    llm: LLMClient = Depends(get_llm_client),
+    visibility_repo: VisibilityRepository = Depends(get_visibility_repo),
+):
+    data = generate_benchmark_data(request.brands, request.queries, llm, visibility_repo)
+    html = render_report_html(data)
+    return StreamingResponse(
+        io.BytesIO(html.encode()),
+        media_type="text/html",
+        headers={"Content-Disposition": "attachment; filename=ai_visibility_report.html"},
     )

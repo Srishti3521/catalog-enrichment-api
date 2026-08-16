@@ -2,6 +2,7 @@ import uuid
 from sqlalchemy.orm import Session
 from app.repositories.models import VisibilityCheckDB
 
+
 class VisibilityRepository:
     def __init__(self, db: Session):
         self.db = db
@@ -25,9 +26,10 @@ class VisibilityRepository:
 
     def get_by_id(self, check_id: str):
         return self.db.query(VisibilityCheckDB).filter(VisibilityCheckDB.id == check_id).first()
+
     def get_history_for_brand(self, brand: str):
         all_checks = self.db.query(VisibilityCheckDB).all()
         return [
-        check for check in all_checks
-        if brand.lower() in [b.strip().lower() for b in check.watched_brands.split(",")]
-    ]
+            check for check in all_checks
+            if brand.lower() in [b.strip().lower() for b in check.watched_brands.split(",")]
+        ]

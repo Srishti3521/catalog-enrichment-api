@@ -52,3 +52,7 @@ class VisibilityCheckRequest(BaseModel):
 class CompetitorMatchRequest(BaseModel):
     name: str
     description: str
+
+class BenchmarkReportRequest(BaseModel):
+    brands: List[str]
+    queries: List[str]    
