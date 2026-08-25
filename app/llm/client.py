@@ -12,21 +12,28 @@ class LLMClient:
         self.model = "gemini-flash-lite-latest"
 
     def enrich(self, name: str, description: str) -> dict:
-        prompt = f"""You are a product data enrichment assistant.
+        prompt = f"""You are a product data enrichment assistant that structures footwear/apparel product data according to the GS1 Web Vocabulary standard.
 
 Given this product, extract the following fields as JSON:
-- material
-- use_case
-- size_range
-- gender
-- weather_resistance
-- key_features (a short list of 2-4 standout features, as a single comma-separated string)
-- target_audience (who this product is best suited for, e.g. "casual runners", "professional athletes")
-- differentiators (what makes this product distinct from similar products, based only on the given description)
+- gs1_upper_material_type (the material(s) used for the upper part of the footwear/apparel, e.g. "mesh", "leather")
+- gs1_sporting_activity_type (the sporting/use activity the product is intended for, e.g. "running", "football")
+- gs1_target_consumer_gender (e.g. "male", "female", "unisex")
+- gs1_is_waterproof (true, false, or null if not mentioned — whether the product claims waterproofing)
+- gs1_product_feature_benefit (2-4 standout features/benefits as a single comma-separated string)
+- gs1_consumer_lifestage (who this product is designed for, e.g. "adult", "youth")
+- gs1_fastening_type (how the product fastens, e.g. "laces", "velcro", "slip-on", or null if not footwear/not mentioned)
+- gs1_footwear_upper_type ("open" or "closed", or null if not footwear/not mentioned)
+- gs1_is_patterned (true, false, or null if not mentioned — whether the product has a patterned design)
+- gs1_is_thermal (true, false, or null if not mentioned — whether the product is thermal/insulated)
+- gs1_style_description (a short phrase describing the style, e.g. "athletic", "casual lifestyle")
+- gs1_storage_instructions (care/storage instructions if mentioned, else null)
+- gs1_recycling_instructions (recycling instructions if mentioned, else null)
+- differentiators (what makes this specific product distinct from similar products, based only on the given description)
 
 Rules:
 - Return ONLY valid JSON, nothing else. No explanation, no markdown formatting.
 - If a field cannot be reasonably inferred, use null.
+- For boolean fields, use true/false only when the description gives real signal; otherwise null. Do not default to false when unsure — use null.
 - Do not guess wildly — only fill a field if the name/description gives real signal.
 
 Product name: {name}

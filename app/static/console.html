@@ -612,11 +612,15 @@
       <div class="grid-2">
         <div class="field"><label>Price</label><input type="number" step="0.01" id="e-price" placeholder="89.99" /></div>
         <div class="field"><label>Currency</label><input type="text" id="e-currency" placeholder="USD" /></div>
-        <div class="field"><label>Colour</label><input type="text" id="e-colour" placeholder="Black" /></div>
-        <div class="field"><label>URL</label><input type="text" id="e-url" placeholder="https://..." /></div>
-        <div class="field"><label>Availability</label><input type="text" id="e-availability" placeholder="in stock" /></div>
+        <div class="field"><label>Availability</label><input type="text" id="e-availability" placeholder="InStock" /></div>
         <div class="field"><label>Rating</label><input type="number" step="0.1" id="e-rating" placeholder="4.5" /></div>
-        <div class="field" style="grid-column: 1 / -1;"><label>Available sizes</label><input type="text" id="e-sizes" placeholder="8,9,10,11" /></div>
+        <div class="field"><label>Colour (gs1:colourDescription)</label><input type="text" id="e-colour" placeholder="Black" /></div>
+        <div class="field"><label>Size (gs1:size)</label><input type="text" id="e-sizes" placeholder="8,9,10,11" /></div>
+        <div class="field"><label>Brand (gs1:brand)</label><input type="text" id="e-brand" placeholder="Nike" /></div>
+        <div class="field"><label>Country of Origin</label><input type="text" id="e-country" placeholder="Vietnam" /></div>
+        <div class="field"><label>Season Name</label><input type="text" id="e-season" placeholder="Winter" /></div>
+        <div class="field"><label>Net Weight</label><input type="text" id="e-weight" placeholder="0.4 kg" /></div>
+        <div class="field" style="grid-column: 1 / -1;"><label>Image / Referenced File URL</label><input type="text" id="e-url" placeholder="https://..." /></div>
       </div>
 
       <button class="action" id="e-submit">Enrich product</button>
@@ -842,6 +846,12 @@ function formatDate(iso) {
   try { return new Date(iso).toLocaleString(); } catch (e) { return iso; }
 }
 
+function boolLabel(v) {
+  if (v === true) return 'yes';
+  if (v === false) return 'no';
+  return null;
+}
+
 function renderProductCard(p) {
   const pct = Math.round((p.completeness_score || 0) * 100);
   const tier = scoreTier(p.completeness_score || 0);
@@ -852,14 +862,18 @@ function renderProductCard(p) {
     ? `<div class="fail-banner">enrichment_failed — the model's response couldn't be parsed. Only fields provided directly are shown below.</div>`
     : '';
 
-  // Row 1 — semantic attributes the model inferred
+  // Row 1 — GS1-aligned semantic attributes the model inferred
   const coreChips = [
-    attrChip('material', p.material),
-    attrChip('use case', p.use_case),
-    attrChip('size range', p.size_range),
-    attrChip('gender', p.gender),
-    attrChip('weather', p.weather_resistance),
-    attrChip('audience', p.target_audience),
+    attrChip('upper material', p.gs1_upper_material_type),
+    attrChip('sporting activity', p.gs1_sporting_activity_type),
+    attrChip('target gender', p.gs1_target_consumer_gender),
+    attrChip('waterproof', boolLabel(p.gs1_is_waterproof)),
+    attrChip('lifestage', p.gs1_consumer_lifestage),
+    attrChip('fastening type', p.gs1_fastening_type),
+    attrChip('upper type', p.gs1_footwear_upper_type),
+    attrChip('patterned', boolLabel(p.gs1_is_patterned)),
+    attrChip('thermal', boolLabel(p.gs1_is_thermal)),
+    attrChip('style', p.gs1_style_description),
   ].filter(Boolean).join('');
 
   // Row 2 — factual/commercial fields, passed through untouched, never inferred
@@ -868,11 +882,15 @@ function renderProductCard(p) {
     priceChip,
     attrChip('availability', p.availability),
     attrChip('rating', p.rating),
-    attrChip('colour', p.colour),
-    attrChip('sizes', p.available_sizes),
+    attrChip('colour', p.gs1_colour_description),
+    attrChip('size', p.gs1_size),
+    attrChip('brand', p.gs1_brand),
+    attrChip('country of origin', p.gs1_country_of_origin),
+    attrChip('season', p.gs1_season_name),
+    attrChip('net weight', p.gs1_net_weight),
   ].filter(Boolean).join('');
-  const urlLink = p.url
-    ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="attr-chip" style="text-decoration:none;">view listing ↗</a>`
+  const urlLink = p.gs1_referenced_file
+    ? `<a href="${escapeHtml(p.gs1_referenced_file)}" target="_blank" rel="noopener" class="attr-chip" style="text-decoration:none;">view listing ↗</a>`
     : '';
 
   // Row 3 — raw missing-fields list, distinct from the prose gap summary
@@ -881,10 +899,16 @@ function renderProductCard(p) {
     ? `<div class="attr-row">${missingList.map(f => `<span class="attr-chip missing">missing: ${escapeHtml(f)}</span>`).join('')}</div>`
     : '';
 
-  const features = p.key_features ? `
+  const features = p.gs1_product_feature_benefit ? `
     <div class="feature-block">
-      <div class="feature-label">key features</div>
-      <div class="feature-text">${escapeHtml(p.key_features)}</div>
+      <div class="feature-label">product feature benefit</div>
+      <div class="feature-text">${escapeHtml(p.gs1_product_feature_benefit)}</div>
+    </div>` : '';
+
+  const care = (p.gs1_storage_instructions || p.gs1_recycling_instructions) ? `
+    <div class="feature-block">
+      <div class="feature-label">care &amp; recycling</div>
+      <div class="feature-text">${escapeHtml([p.gs1_storage_instructions, p.gs1_recycling_instructions].filter(Boolean).join(' · '))}</div>
     </div>` : '';
 
   const diff = p.differentiators ? `
@@ -903,7 +927,7 @@ function renderProductCard(p) {
 
   const schemaSection = p.id != null ? `
     <div class="card-actions">
-      <button class="ghost" onclick="toggleSchema(${p.id})">view schema.org JSON-LD</button>
+      <button class="ghost" onclick="toggleSchema(${p.id})">view schema.org / GS1 JSON-LD</button>
     </div>
     <pre class="schema-block mono" id="schema-${p.id}" style="display:none;"></pre>
   ` : '';
@@ -921,6 +945,7 @@ function renderProductCard(p) {
         ${(commerceChips || urlLink) ? `<div class="attr-row">${commerceChips}${urlLink}</div>` : ''}
         ${missingChips}
         ${features}
+        ${care}
         ${diff}
         ${gap}
         ${description}
@@ -945,11 +970,15 @@ document.getElementById('e-submit').addEventListener('click', async () => {
     name, description,
     price: numOrNull('e-price'),
     currency: strOrNull('e-currency'),
-    colour: strOrNull('e-colour'),
-    url: strOrNull('e-url'),
     availability: strOrNull('e-availability'),
     rating: numOrNull('e-rating'),
-    available_sizes: strOrNull('e-sizes'),
+    gs1_colour_description: strOrNull('e-colour'),
+    gs1_size: strOrNull('e-sizes'),
+    gs1_referenced_file: strOrNull('e-url'),
+    gs1_brand: strOrNull('e-brand'),
+    gs1_country_of_origin: strOrNull('e-country'),
+    gs1_season_name: strOrNull('e-season'),
+    gs1_net_weight: strOrNull('e-weight'),
   };
   const btn = document.getElementById('e-submit');
   btn.disabled = true; btn.textContent = 'Enriching…';

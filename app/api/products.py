@@ -22,6 +22,7 @@ from app.services.analytics import get_catalog_summary, get_visibility_summary
 from app.schemas.product import BenchmarkReportRequest
 from app.services.report import generate_benchmark_data, render_report_html
 from fastapi.responses import HTMLResponse
+from app.services.scoring import compute_field_weights, get_remediation_priorities
 
 router = APIRouter()
 
@@ -80,9 +81,15 @@ def enrich_product(
 ):
     return enrich_and_save(
         product.name, product.description, llm, repo,
-        price=product.price, currency=product.currency, colour=product.colour,
-        url=product.url, availability=product.availability,
-        rating=product.rating, available_sizes=product.available_sizes,
+        price=product.price, currency=product.currency, availability=product.availability,
+        rating=product.rating,
+        gs1_colour_description=product.gs1_colour_description,
+        gs1_size=product.gs1_size,
+        gs1_referenced_file=product.gs1_referenced_file,
+        gs1_brand=product.gs1_brand,
+        gs1_country_of_origin=product.gs1_country_of_origin,
+        gs1_season_name=product.gs1_season_name,
+        gs1_net_weight=product.gs1_net_weight,
     )
 
 
@@ -127,7 +134,7 @@ def get_job_results(
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed":
         return {"status": job.status, "message": "Job still processing"}
-    return product_repo.get_all()
+    return product_repo.get_by_job_id(job_id)
 
 
 @router.get("/products/{product_id}/schema-org", dependencies=[Depends(verify_api_key)])
@@ -216,6 +223,21 @@ def analytics_summary(
         "catalog": get_catalog_summary(product_repo),
         "visibility": get_visibility_summary(visibility_repo),
     }
+@router.get("/analytics/field-weights", dependencies=[Depends(verify_api_key)])
+def field_weights(
+    product_repo: ProductRepository = Depends(get_product_repo),
+    visibility_repo: VisibilityRepository = Depends(get_visibility_repo),
+):
+    return compute_field_weights(product_repo, visibility_repo)
+
+
+@router.get("/analytics/remediation-priority", dependencies=[Depends(verify_api_key)])
+def remediation_priority(
+    limit: int = 10,
+    product_repo: ProductRepository = Depends(get_product_repo),
+    visibility_repo: VisibilityRepository = Depends(get_visibility_repo),
+):
+    return get_remediation_priorities(product_repo, visibility_repo, limit=limit)
 
 @router.post("/reports/benchmark", dependencies=[Depends(verify_api_key)])
 def benchmark_report(

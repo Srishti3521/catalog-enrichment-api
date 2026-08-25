@@ -8,8 +8,15 @@ from app.repositories.product_repo import ProductRepository
 from app.repositories.job_repo import JobRepository
 from app.core.database import SessionLocal
 
-ENRICHED_FIELDS = ["material", "use_case", "size_range", "gender", "weather_resistance",
-                   "key_features", "target_audience", "differentiators"]
+ENRICHED_FIELDS = [
+    "gs1_upper_material_type", "gs1_sporting_activity_type", "gs1_target_consumer_gender",
+    "gs1_is_waterproof", "gs1_product_feature_benefit", "gs1_consumer_lifestage",
+    "gs1_fastening_type", "gs1_footwear_upper_type", "gs1_is_patterned", "gs1_is_thermal",
+    "gs1_style_description", "gs1_storage_instructions", "gs1_recycling_instructions",
+    "differentiators",
+]
+
+BOOLEAN_FIELDS = {"gs1_is_waterproof", "gs1_is_patterned", "gs1_is_thermal"}
 
 
 def _to_string(value):
@@ -18,14 +25,25 @@ def _to_string(value):
     return value
 
 
+def _is_filled(value):
+    """A boolean False is a real, meaningful answer — only None/empty counts as missing."""
+    if value is None:
+        return False
+    if isinstance(value, str) and value.strip() == "":
+        return False
+    return True
+
+
 def compute_completeness_score(enriched_data: dict) -> float:
-    filled = sum(1 for field in ENRICHED_FIELDS if enriched_data.get(field))
+    filled = sum(1 for field in ENRICHED_FIELDS if _is_filled(enriched_data.get(field)))
     return round(filled / len(ENRICHED_FIELDS), 2)
 
 
 def flag_needs_review(enriched_data: dict, completeness_score: float = None) -> bool:
     vague_values = {"various", "unknown", "n/a", "unclear", "assorted"}
     for field in ENRICHED_FIELDS:
+        if field in BOOLEAN_FIELDS:
+            continue
         value = enriched_data.get(field)
         if isinstance(value, list):
             value = ", ".join(str(v) for v in value)
@@ -37,22 +55,28 @@ def flag_needs_review(enriched_data: dict, completeness_score: float = None) -> 
 
 
 FIELD_LABELS = {
-    "material": "material",
-    "use_case": "use case",
-    "size_range": "size range",
-    "gender": "gender",
-    "weather_resistance": "weather resistance",
-    "key_features": "key features",
-    "target_audience": "target audience",
+    "gs1_upper_material_type": "upper material",
+    "gs1_sporting_activity_type": "sporting activity type",
+    "gs1_target_consumer_gender": "target consumer gender",
+    "gs1_is_waterproof": "waterproof status",
+    "gs1_product_feature_benefit": "product feature benefit",
+    "gs1_consumer_lifestage": "consumer lifestage",
+    "gs1_fastening_type": "fastening type",
+    "gs1_footwear_upper_type": "footwear upper type",
+    "gs1_is_patterned": "patterned status",
+    "gs1_is_thermal": "thermal status",
+    "gs1_style_description": "style description",
+    "gs1_storage_instructions": "storage instructions",
+    "gs1_recycling_instructions": "recycling instructions",
     "differentiators": "differentiators",
 }
 
 
 def build_gap_summary(enriched_data: dict) -> tuple:
-    missing = [field for field in ENRICHED_FIELDS if not enriched_data.get(field)]
+    missing = [field for field in ENRICHED_FIELDS if not _is_filled(enriched_data.get(field))]
 
     if not missing:
-        return "", "This listing has all core attributes filled in, giving AI systems strong signal to recommend it confidently."
+        return "", "This listing has all GS1-aligned attributes filled in, giving AI systems and retail systems strong signal to recommend it confidently."
 
     labels = [FIELD_LABELS[f] for f in missing]
     if len(labels) == 1:
@@ -70,33 +94,40 @@ def build_gap_summary(enriched_data: dict) -> tuple:
 
 
 def to_schema_org(product) -> dict:
+    """Formats an enriched product as schema.org/Product JSON-LD using real GS1 namespace properties."""
     additional_properties = []
 
-    if product.material:
-        additional_properties.append({"@type": "PropertyValue", "name": "material", "value": product.material})
-    if product.use_case:
-        additional_properties.append({"@type": "PropertyValue", "name": "use case", "value": product.use_case})
-    if product.size_range:
-        additional_properties.append({"@type": "PropertyValue", "name": "size range", "value": product.size_range})
-    if product.gender:
-        additional_properties.append({"@type": "PropertyValue", "name": "gender", "value": product.gender})
-    if product.weather_resistance:
-        additional_properties.append({"@type": "PropertyValue", "name": "weather resistance", "value": product.weather_resistance})
-    if product.target_audience:
-        additional_properties.append({"@type": "PropertyValue", "name": "target audience", "value": product.target_audience})
-    if product.differentiators:
-        additional_properties.append({"@type": "PropertyValue", "name": "differentiators", "value": product.differentiators})
+    def add(name, value):
+        if _is_filled(value):
+            additional_properties.append({"@type": "PropertyValue", "name": name, "value": value})
+
+    add("gs1:upperMaterialType", product.gs1_upper_material_type)
+    add("gs1:sportingActivityType", product.gs1_sporting_activity_type)
+    add("gs1:targetConsumerGender", product.gs1_target_consumer_gender)
+    add("gs1:isWaterproof", product.gs1_is_waterproof)
+    add("gs1:consumerLifestage", product.gs1_consumer_lifestage)
+    add("gs1:footwearFasteningType", product.gs1_fastening_type)
+    add("gs1:footwearUpperType", product.gs1_footwear_upper_type)
+    add("gs1:isPatterned", product.gs1_is_patterned)
+    add("gs1:isThermal", product.gs1_is_thermal)
+    add("gs1:styleDescription", product.gs1_style_description)
+    add("gs1:colourDescription", product.gs1_colour_description)
+    add("gs1:size", product.gs1_size)
+    add("gs1:brand", product.gs1_brand)
+    add("gs1:countryOfOrigin", product.gs1_country_of_origin)
+    add("gs1:seasonName", product.gs1_season_name)
+    add("gs1:netWeight", product.gs1_net_weight)
 
     schema = {
-        "@context": "https://schema.org/",
+        "@context": {"@vocab": "https://schema.org/", "gs1": "https://gs1.org/voc/"},
         "@type": "Product",
         "name": product.name,
         "description": product.description,
         "additionalProperty": additional_properties,
     }
 
-    if product.key_features:
-        schema["keywords"] = product.key_features
+    if product.gs1_product_feature_benefit:
+        schema["keywords"] = product.gs1_product_feature_benefit
 
     return schema
 
@@ -111,39 +142,55 @@ def cosine_similarity(vec_a, vec_b):
 
 
 def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRepository,
-                     price: float = None, currency: str = None, colour: str = None,
-                     url: str = None, availability: str = None, rating: float = None,
-                     available_sizes: str = None, is_competitor: bool = False,
-                     job_id: str = None) -> dict:
+                     price: float = None, currency: str = None, availability: str = None,
+                     rating: float = None, gs1_colour_description: str = None,
+                     gs1_size: str = None, gs1_referenced_file: str = None,
+                     gs1_brand: str = None, gs1_country_of_origin: str = None,
+                     gs1_season_name: str = None, gs1_net_weight: str = None,
+                     is_competitor: bool = False, job_id: str = None) -> dict:
     enriched_data = llm.enrich(name, description)
+
+    base_record = {
+        "name": name,
+        "description": description,
+        "price": price,
+        "currency": currency,
+        "availability": availability,
+        "rating": rating,
+        "gs1_colour_description": gs1_colour_description,
+        "gs1_size": gs1_size,
+        "gs1_referenced_file": gs1_referenced_file,
+        "gs1_brand": gs1_brand,
+        "gs1_country_of_origin": gs1_country_of_origin,
+        "gs1_season_name": gs1_season_name,
+        "gs1_net_weight": gs1_net_weight,
+        "is_competitor": is_competitor,
+        "job_id": job_id,
+    }
 
     if enriched_data.get("_parse_failed"):
         product_record = {
-            "name": name,
-            "description": description,
-            "price": price,
-            "currency": currency,
-            "colour": colour,
-            "url": url,
-            "availability": availability,
-            "rating": rating,
-            "available_sizes": available_sizes,
-            "material": None,
-            "use_case": None,
-            "size_range": None,
-            "gender": None,
-            "weather_resistance": None,
-            "key_features": None,
-            "target_audience": None,
+            **base_record,
+            "gs1_upper_material_type": None,
+            "gs1_sporting_activity_type": None,
+            "gs1_target_consumer_gender": None,
+            "gs1_is_waterproof": None,
+            "gs1_product_feature_benefit": None,
+            "gs1_consumer_lifestage": None,
+            "gs1_fastening_type": None,
+            "gs1_footwear_upper_type": None,
+            "gs1_is_patterned": None,
+            "gs1_is_thermal": None,
+            "gs1_style_description": None,
+            "gs1_storage_instructions": None,
+            "gs1_recycling_instructions": None,
             "differentiators": None,
             "completeness_score": 0.0,
             "needs_review": True,
             "status": "enrichment_failed",
-            "missing_fields": "material, use_case, size_range, gender, weather_resistance, key_features, target_audience, differentiators",
+            "missing_fields": ", ".join(ENRICHED_FIELDS),
             "gap_summary": "Enrichment failed, so no attributes could be extracted from this listing.",
             "embedding": None,
-            "is_competitor": is_competitor,
-            "job_id": job_id,
         }
         return repo.save(product_record)
 
@@ -152,33 +199,29 @@ def enrich_and_save(name: str, description: str, llm: LLMClient, repo: ProductRe
     missing_fields, gap_summary = build_gap_summary(enriched_data)
 
     product_record = {
-        "name": name,
-        "description": description,
-        "price": price,
-        "currency": currency,
-        "colour": colour,
-        "url": url,
-        "availability": availability,
-        "rating": rating,
-        "available_sizes": available_sizes,
-        "material": _to_string(enriched_data.get("material")),
-        "use_case": _to_string(enriched_data.get("use_case")),
-        "size_range": _to_string(enriched_data.get("size_range")),
-        "gender": _to_string(enriched_data.get("gender")),
-        "weather_resistance": _to_string(enriched_data.get("weather_resistance")),
-        "key_features": _to_string(enriched_data.get("key_features")),
-        "target_audience": _to_string(enriched_data.get("target_audience")),
+        **base_record,
+        "gs1_upper_material_type": _to_string(enriched_data.get("gs1_upper_material_type")),
+        "gs1_sporting_activity_type": _to_string(enriched_data.get("gs1_sporting_activity_type")),
+        "gs1_target_consumer_gender": _to_string(enriched_data.get("gs1_target_consumer_gender")),
+        "gs1_is_waterproof": enriched_data.get("gs1_is_waterproof"),
+        "gs1_product_feature_benefit": _to_string(enriched_data.get("gs1_product_feature_benefit")),
+        "gs1_consumer_lifestage": _to_string(enriched_data.get("gs1_consumer_lifestage")),
+        "gs1_fastening_type": _to_string(enriched_data.get("gs1_fastening_type")),
+        "gs1_footwear_upper_type": _to_string(enriched_data.get("gs1_footwear_upper_type")),
+        "gs1_is_patterned": enriched_data.get("gs1_is_patterned"),
+        "gs1_is_thermal": enriched_data.get("gs1_is_thermal"),
+        "gs1_style_description": _to_string(enriched_data.get("gs1_style_description")),
+        "gs1_storage_instructions": _to_string(enriched_data.get("gs1_storage_instructions")),
+        "gs1_recycling_instructions": _to_string(enriched_data.get("gs1_recycling_instructions")),
         "differentiators": _to_string(enriched_data.get("differentiators")),
         "completeness_score": score,
         "needs_review": needs_review,
         "status": "completed",
         "missing_fields": missing_fields,
         "gap_summary": gap_summary,
-        "is_competitor": is_competitor,
-        "job_id": job_id,
     }
 
-    embedding_text = f"{name}. {description}. {_to_string(enriched_data.get('key_features')) or ''}"
+    embedding_text = f"{name}. {description}. {_to_string(enriched_data.get('gs1_product_feature_benefit')) or ''}"
     try:
         embedding_vector = llm.embed_text(embedding_text)
         product_record["embedding"] = json.dumps(embedding_vector)
@@ -223,17 +266,23 @@ async def process_batch(file_bytes: bytes, job_id: str, llm: LLMClient):
 
                 price = safe_float(row.get("price"))
                 currency = row.get("currency", "").strip() or None
-                colour = row.get("color", row.get("colour", "")).strip() or None
-                url = row.get("url", "").strip() or None
                 availability = row.get("availability", "").strip() or None
                 rating = safe_float(row.get("avg_rating", row.get("rating")))
-                available_sizes = row.get("available_sizes", "").strip() or None
+                gs1_colour_description = row.get("color", row.get("colour", "")).strip() or None
+                gs1_size = row.get("available_sizes", row.get("size", "")).strip() or None
+                gs1_referenced_file = row.get("url", "").strip() or None
+                gs1_brand = row.get("brand", "").strip() or None
+                gs1_country_of_origin = row.get("country_of_origin", "").strip() or None
+                gs1_season_name = row.get("season", "").strip() or None
+                gs1_net_weight = row.get("net_weight", "").strip() or None
 
                 enrich_and_save(
                     name, description, llm, repo,
-                    price=price, currency=currency, colour=colour,
-                    url=url, availability=availability, rating=rating,
-                    available_sizes=available_sizes, job_id=job_id,
+                    price=price, currency=currency, availability=availability, rating=rating,
+                    gs1_colour_description=gs1_colour_description, gs1_size=gs1_size,
+                    gs1_referenced_file=gs1_referenced_file, gs1_brand=gs1_brand,
+                    gs1_country_of_origin=gs1_country_of_origin, gs1_season_name=gs1_season_name,
+                    gs1_net_weight=gs1_net_weight, job_id=job_id,
                 )
                 job_repo.update_progress(job_id, completed=1)
             except Exception as e:
@@ -255,18 +304,20 @@ async def process_batch(file_bytes: bytes, job_id: str, llm: LLMClient):
 
 
 def compare_products(product_a, product_b, llm: LLMClient) -> dict:
-    a_dict = {
-        "name": product_a.name, "material": product_a.material, "use_case": product_a.use_case,
-        "size_range": product_a.size_range, "gender": product_a.gender,
-        "weather_resistance": product_a.weather_resistance, "key_features": product_a.key_features,
-        "target_audience": product_a.target_audience, "differentiators": product_a.differentiators,
-    }
-    b_dict = {
-        "name": product_b.name, "material": product_b.material, "use_case": product_b.use_case,
-        "size_range": product_b.size_range, "gender": product_b.gender,
-        "weather_resistance": product_b.weather_resistance, "key_features": product_b.key_features,
-        "target_audience": product_b.target_audience, "differentiators": product_b.differentiators,
-    }
+    def to_dict(p):
+        return {
+            "name": p.name,
+            "gs1_upper_material_type": p.gs1_upper_material_type,
+            "gs1_sporting_activity_type": p.gs1_sporting_activity_type,
+            "gs1_target_consumer_gender": p.gs1_target_consumer_gender,
+            "gs1_is_waterproof": p.gs1_is_waterproof,
+            "gs1_product_feature_benefit": p.gs1_product_feature_benefit,
+            "gs1_consumer_lifestage": p.gs1_consumer_lifestage,
+            "differentiators": p.differentiators,
+        }
+
+    a_dict = to_dict(product_a)
+    b_dict = to_dict(product_b)
 
     result = llm.compare(a_dict, b_dict)
 

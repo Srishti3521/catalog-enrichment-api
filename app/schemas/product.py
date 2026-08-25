@@ -8,11 +8,15 @@ class RawProduct(BaseModel):
     description: str
     price: Optional[float] = None
     currency: Optional[str] = None
-    colour: Optional[str] = None
-    url: Optional[str] = None
     availability: Optional[str] = None
     rating: Optional[float] = None
-    available_sizes: Optional[str] = None
+    gs1_colour_description: Optional[str] = None
+    gs1_size: Optional[str] = None
+    gs1_referenced_file: Optional[str] = None
+    gs1_brand: Optional[str] = None
+    gs1_country_of_origin: Optional[str] = None
+    gs1_season_name: Optional[str] = None
+    gs1_net_weight: Optional[str] = None
 
 
 class EnrichedProduct(BaseModel):
@@ -21,18 +25,28 @@ class EnrichedProduct(BaseModel):
     description: str
     price: Optional[float] = None
     currency: Optional[str] = None
-    colour: Optional[str] = None
-    url: Optional[str] = None
     availability: Optional[str] = None
     rating: Optional[float] = None
-    available_sizes: Optional[str] = None
-    material: Optional[str] = None
-    use_case: Optional[str] = None
-    size_range: Optional[str] = None
-    gender: Optional[str] = None
-    weather_resistance: Optional[str] = None
-    key_features: Optional[str] = None
-    target_audience: Optional[str] = None
+    gs1_colour_description: Optional[str] = None
+    gs1_size: Optional[str] = None
+    gs1_referenced_file: Optional[str] = None
+    gs1_brand: Optional[str] = None
+    gs1_country_of_origin: Optional[str] = None
+    gs1_season_name: Optional[str] = None
+    gs1_net_weight: Optional[str] = None
+    gs1_upper_material_type: Optional[str] = None
+    gs1_sporting_activity_type: Optional[str] = None
+    gs1_target_consumer_gender: Optional[str] = None
+    gs1_is_waterproof: Optional[bool] = None
+    gs1_product_feature_benefit: Optional[str] = None
+    gs1_consumer_lifestage: Optional[str] = None
+    gs1_fastening_type: Optional[str] = None
+    gs1_footwear_upper_type: Optional[str] = None
+    gs1_is_patterned: Optional[bool] = None
+    gs1_is_thermal: Optional[bool] = None
+    gs1_style_description: Optional[str] = None
+    gs1_storage_instructions: Optional[str] = None
+    gs1_recycling_instructions: Optional[str] = None
     differentiators: Optional[str] = None
     completeness_score: float = 0.0
     needs_review: bool = False
@@ -53,6 +67,7 @@ class CompetitorMatchRequest(BaseModel):
     name: str
     description: str
 
+
 class BenchmarkReportRequest(BaseModel):
     brands: List[str]
-    queries: List[str]    
+    queries: List[str]
