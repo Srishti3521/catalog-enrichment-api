@@ -470,6 +470,47 @@
   }
   .job-meta span b { color: var(--text); }
 
+  /* ---------- Insights: field weights & remediation ---------- */
+
+  .w-row {
+    display: grid;
+    grid-template-columns: 200px 1fr 60px 70px;
+    grid-template-areas:
+      "field bar value source"
+      "detail detail detail detail";
+    align-items: center;
+    gap: 6px 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .w-row:last-child { border-bottom: none; }
+  .w-field { grid-area: field; font-size: 12px; color: var(--text); }
+  .w-bar-track {
+    grid-area: bar;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .w-bar { height: 100%; background: var(--amber); }
+  .w-value { grid-area: value; font-size: 12px; color: var(--text); text-align: right; }
+  .w-source { grid-area: source; text-align: right; }
+  .w-detail { grid-area: detail; font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+
+  .badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-soft);
+  }
+  .badge-high { color: var(--sage); border-color: var(--sage); }
+  .badge-mid { color: var(--amber); border-color: var(--amber); }
+
   /* ---------- Misc ---------- */
 
   .empty {
@@ -592,6 +633,7 @@
     <button class="tab-btn" data-tab="catalog">Catalog</button>
     <button class="tab-btn" data-tab="compare">Compare</button>
     <button class="tab-btn" data-tab="visibility">Visibility</button>
+    <button class="tab-btn" data-tab="insights">Insights</button>
   </nav>
 
   <!-- ENRICH -->
@@ -755,6 +797,26 @@
     </div>
   </section>
 
+  <!-- INSIGHTS -->
+  <section class="panel" id="panel-insights">
+    <div class="card">
+      <h2>Learned attribute-impact weights</h2>
+      <p class="hint">For each GS1 field, how much filling it in is associated with higher AI visibility (share of voice), learned from your own visibility-check outcomes. Fields without enough linked data fall back to a default weight.</p>
+      <button class="action" id="fw-submit">Load field weights</button>
+      <div id="fw-error"></div>
+      <div id="fw-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>Remediation priority</h2>
+      <p class="hint">Ranks review-flagged products by expected AI-visibility gain per unit of fixing effort — which products are worth fixing first, given limited time.</p>
+      <div class="field"><label>Limit</label><input type="number" id="rp-limit" value="10" min="1" /></div>
+      <button class="action" id="rp-submit">Load priorities</button>
+      <div id="rp-error"></div>
+      <div id="rp-result"></div>
+    </div>
+  </section>
+
   <footer class="foot">
     <span>catalog-enrichment-api</span>
     <span id="healthLabel">checking connection…</span>
@@ -802,6 +864,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'catalog') loadCatalog();
+    if (btn.dataset.tab === 'insights') { loadFieldWeights(); loadRemediationPriority(); }
   });
 });
 
@@ -1377,6 +1440,85 @@ document.getElementById('r-submit').addEventListener('click', async () => {
     btn.disabled = false; btn.textContent = 'Generate report';
   }
 });
+
+// ---------- Insights: field weights ----------
+function weightSourceBadge(source) {
+  return source === 'learned'
+    ? `<span class="badge badge-high">learned</span>`
+    : `<span class="badge badge-mid">default</span>`;
+}
+
+async function loadFieldWeights() {
+  const box = document.getElementById('fw-result');
+  const errBox = document.getElementById('fw-error');
+  errBox.innerHTML = '';
+  box.innerHTML = `<div class="empty">Loading field weights…</div>`;
+  try {
+    const res = await fetch(API_BASE + '/analytics/field-weights', { headers: authHeaders(false) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to load field weights');
+    const weights = data.weights || {};
+    const diagnostics = data.diagnostics || {};
+    const rows = Object.keys(weights)
+      .sort((a, b) => weights[b] - weights[a])
+      .map(field => {
+        const d = diagnostics[field] || {};
+        const detail = d.source === 'learned'
+          ? `avg share filled ${Math.round((d.avg_share_filled ?? 0) * 100)}% vs missing ${Math.round((d.avg_share_missing ?? 0) * 100)}% &middot; n=${d.n_filled}/${d.n_missing}`
+          : (d.reason || 'insufficient linked visibility data yet');
+        return `
+          <div class="w-row">
+            <div class="w-field mono">${escapeHtml(field)}</div>
+            <div class="w-bar-track"><div class="w-bar" style="width:${Math.min(100, (weights[field] / (Math.max(...Object.values(weights)) || 1)) * 100)}%"></div></div>
+            <div class="w-value mono">${weights[field].toFixed(3)}</div>
+            <div class="w-source">${weightSourceBadge(d.source)}</div>
+            <div class="w-detail">${escapeHtml(detail)}</div>
+          </div>`;
+      }).join('');
+    box.innerHTML = rows
+      ? `<div class="card" style="margin-top:16px;">${rows}</div>`
+      : `<div class="empty">No fields returned.</div>`;
+  } catch (e) {
+    box.innerHTML = '';
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  }
+}
+document.getElementById('fw-submit').addEventListener('click', loadFieldWeights);
+
+// ---------- Insights: remediation priority ----------
+async function loadRemediationPriority() {
+  const box = document.getElementById('rp-result');
+  const errBox = document.getElementById('rp-error');
+  errBox.innerHTML = '';
+  box.innerHTML = `<div class="empty">Loading remediation priorities…</div>`;
+  const limit = document.getElementById('rp-limit').value || 10;
+  try {
+    const url = new URL(API_BASE + '/analytics/remediation-priority');
+    url.searchParams.set('limit', limit);
+    const res = await fetch(url, { headers: authHeaders(false) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to load remediation priorities');
+    if (!Array.isArray(data) || !data.length) {
+      box.innerHTML = `<div class="empty">No review-flagged products with missing fields.</div>`;
+      return;
+    }
+    box.innerHTML = data.map((r, i) => `
+      <div class="card" style="margin-top:${i === 0 ? 16 : 10}px;">
+        <div class="job-meta">
+          <span>#${i + 1} &middot; <b>${escapeHtml(r.name || ('Product ' + r.product_id))}</b></span>
+          <span>priority: <b class="mono">${r.priority_score}</b></span>
+          <span>expected impact: <b class="mono">${r.expected_impact}</b></span>
+          <span>effort: <b class="mono">${r.effort}</b></span>
+          <span>current score: <b class="mono">${r.current_completeness_score != null ? Math.round(r.current_completeness_score * 100) + '%' : '—'}</b></span>
+        </div>
+        <p class="hint" style="margin-top:8px;">Missing: ${(r.missing_fields || []).map(escapeHtml).join(', ') || '—'}</p>
+      </div>`).join('');
+  } catch (e) {
+    box.innerHTML = '';
+    errBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  }
+}
+document.getElementById('rp-submit').addEventListener('click', () => loadRemediationPriority());
 </script>
 
 </body>
